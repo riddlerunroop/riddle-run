@@ -5,6 +5,7 @@ const TAGLINE = "10 Levels. 30 Days. One Winner.";
 
 const ENTRY_FEE = 199;
 const PRIZE_PER_PLAYER = 100; // Prize pool = players × ₹100
+const RAZORPAY_KEY = "rzp_test_SyINirv7CvyYR7";
 
 const PLANS = [
   { id: "season", label: "Single Season", price: 199, badge: "", desc: "One season entry", perks: [] },
@@ -231,7 +232,18 @@ export default function App() {
   const [displayPlayers, setDisplayPlayers] = useState(247);
   const [adminPass, setAdminPass] = useState("");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const answerRef = useRef(null);
+
+  // Load Razorpay SDK on mount
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => setRazorpayLoaded(true);
+    script.onerror = () => console.error("Failed to load Razorpay SDK");
+    document.body.appendChild(script);
+    return () => { if (document.body.contains(script)) document.body.removeChild(script); };
+  }, []);
 
   // Prize pool = players × ₹100
   const prizePool = totalPlayers * PRIZE_PER_PLAYER;
@@ -263,9 +275,38 @@ export default function App() {
   };
 
   const handlePayment = () => {
-    setUser({ name: formData.name, email: formData.email, plan: selectedPlan, isSub: selectedPlan !== "season" });
-    setTotalPlayers(p => p + 1);
-    setScreen(SCREEN.GAME);
+    const amount = selectedPlanData?.price * 100; // Razorpay needs paise
+    const options = {
+      key: RAZORPAY_KEY,
+      amount: amount,
+      currency: "INR",
+      name: "RIDDLE RUN",
+      description: selectedPlanData?.label + " — Season 1",
+      image: "https://riddle-run-e3pm.vercel.app/favicon.ico",
+      prefill: {
+        name: formData.name,
+        email: formData.email,
+        contact: formData.phone,
+      },
+      theme: { color: "#c9a84c" },
+      handler: function (response) {
+        // Payment successful — response.razorpay_payment_id is the payment ID
+        setUser({ name: formData.name, email: formData.email, plan: selectedPlan, isSub: selectedPlan !== "season", paymentId: response.razorpay_payment_id });
+        setTotalPlayers(p => p + 1);
+        setScreen(SCREEN.GAME);
+      },
+      modal: {
+        ondismiss: function () {
+          alert("Payment cancelled. Please try again to enter the game.");
+        }
+      }
+    };
+    if (window.Razorpay) {
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } else {
+      alert("Razorpay is loading, please try again in a moment.");
+    }
   };
 
   const handleSubmitAnswer = () => {
@@ -429,9 +470,11 @@ export default function App() {
                 <div className="fee-row"><span className="fee-label">Total</span><span className="fee-amount">₹{selectedPlanData?.price}</span></div>
               </div>
               <button className="razorpay-btn" onClick={handlePayment}>Pay ₹{selectedPlanData?.price} with Razorpay</button>
-              <p className="payment-note">Powered by Razorpay · UPI, Cards, Net Banking, Wallets<br/>Your entry is confirmed instantly on payment.</p>
-              <div style={{marginTop:"2rem",padding:"1rem",background:"var(--surface)",border:"1px solid var(--border)"}}>
-                <p style={{fontSize:"0.8rem",color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>⚠️ Demo Mode: Click to simulate payment and enter the game.</p>
+              <p className="payment-note">Powered by Razorpay · UPI, Cards, Net Banking, Wallets accepted<br/>Your entry is confirmed instantly on payment.</p>
+              <div style={{marginTop:"1.5rem",display:"flex",gap:"0.5rem",justifyContent:"center",flexWrap:"wrap"}}>
+                {["UPI","Visa","Mastercard","RuPay","Net Banking","Wallets"].map(m => (
+                  <span key={m} style={{fontFamily:"'Space Mono',monospace",fontSize:"0.55rem",padding:"0.3rem 0.6rem",border:"1px solid var(--border)",color:"var(--text-dim)",letterSpacing:"0.1em"}}>{m}</span>
+                ))}
               </div>
             </div>
           )}
