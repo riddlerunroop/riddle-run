@@ -37,7 +37,14 @@ const MOCK_LEADERBOARD = [
   { name: "Rahul N.",  level: 3, time: "4h 11m", location: "Hyderabad", sub: false },
 ];
 
-const SCREEN = { LANDING:"landing", PLANS:"plans", REGISTER:"register", PAYMENT:"payment", GAME:"game", LEADERBOARD:"leaderboard", ADMIN:"admin" };
+// Simulated user store (in production this would be your database)
+// Each user: { email, password, name, phone, plan, isSub, completedLevels, hintsUsed, joinedOn }
+let REGISTERED_USERS = [
+  { email:"aryan@test.com",  password:"aryan123",  name:"Aryan S.",  phone:"9999999991", plan:"monthly",  isSub:true,  completedLevels:[0,1,2,3,4,5], hintsUsed:1, joinedOn:"2026-07-07" },
+  { email:"meera@test.com",  password:"meera123",  name:"Meera K.",  phone:"9999999992", plan:"season",   isSub:false, completedLevels:[0,1,2,3,4],   hintsUsed:0, joinedOn:"2026-07-07" },
+];
+
+const SCREEN = { LANDING:"landing", PLANS:"plans", REGISTER:"register", PAYMENT:"payment", GAME:"game", LEADERBOARD:"leaderboard", ADMIN:"admin", LOGIN:"login" };
 const ADMIN_TAB = { STATS:"stats", RIDDLES:"riddles", PLAYERS:"players" };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -290,6 +297,10 @@ export default function App() {
   const [adminPass, setAdminPass]       = useState("");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminTab, setAdminTab]         = useState(ADMIN_TAB.STATS);
+  const [loginEmail, setLoginEmail]     = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError]     = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [riddles, setRiddles]           = useState(DEFAULT_RIDDLES);
   const [editingRiddle, setEditingRiddle] = useState(null); // holds temp edits
   const [savedLevel, setSavedLevel]     = useState(null);
@@ -344,6 +355,8 @@ export default function App() {
       prefill: { name: formData.name, email: formData.email, contact: formData.phone },
       theme: { color: "#c9a84c" },
       handler: (response) => {
+        const newUser = { email: formData.email, password: formData.phone.replace(/\s/g,"").slice(-6), name: formData.name, phone: formData.phone, plan: selectedPlan, isSub: selectedPlan !== "season", completedLevels: [], hintsUsed: 0, joinedOn: new Date().toISOString().slice(0,10) };
+        REGISTERED_USERS.push(newUser);
         setUser({ name: formData.name, email: formData.email, plan: selectedPlan, isSub: selectedPlan !== "season", paymentId: response.razorpay_payment_id });
         setTotalPlayers(p => p + 1);
         setScreen(SCREEN.GAME);
@@ -361,6 +374,27 @@ export default function App() {
     setScreen(SCREEN.PAYMENT);
   };
 
+  // ── LOGIN ──
+  const handleLogin = () => {
+    setLoginError("");
+    if (!loginEmail || !loginPassword) { setLoginError("Please enter your email and password."); return; }
+    const found = REGISTERED_USERS.find(u => u.email.toLowerCase() === loginEmail.toLowerCase() && u.password === loginPassword);
+    if (!found) { setLoginError("Email or password is incorrect. Please try again."); return; }
+    // Restore full session
+    setUser({ name: found.name, email: found.email, plan: found.plan, isSub: found.isSub });
+    setCompletedLevels(found.completedLevels);
+    setHintsUsed(found.hintsUsed);
+    setCurrentLevel(found.completedLevels.length > 0 ? found.completedLevels[found.completedLevels.length - 1] : 0);
+    setLoginEmail(""); setLoginPassword(""); setLoginError("");
+    setScreen(SCREEN.GAME);
+  };
+
+  // Save progress to mock store (in production: API call to save to database)
+  const saveProgress = (newCompleted) => {
+    const idx = REGISTERED_USERS.findIndex(u => u.email === user?.email);
+    if (idx !== -1) REGISTERED_USERS[idx].completedLevels = newCompleted;
+  };
+
   // ── GAME LOGIC ──
   // For late joiners: can solve freely until they CATCH UP to the current live level.
   // Once caught up, they must wait like everyone else.
@@ -376,6 +410,7 @@ export default function App() {
       setFeedback({ type:"success", msg:"Correct! Well done. Proceeding..." });
       const newCompleted = [...completedLevels, currentLevel];
       setCompletedLevels(newCompleted);
+      saveProgress(newCompleted);
       setTimeout(() => {
         const nextIdx = currentLevel + 1;
         if (nextIdx >= riddles.length) {
@@ -431,8 +466,17 @@ export default function App() {
             <button className="nav-link" onClick={() => setScreen(SCREEN.LEADERBOARD)}>Leaderboard</button>
             {user && <button className="nav-link" onClick={() => setScreen(SCREEN.GAME)}>My Game</button>}
             <button className="nav-link" onClick={() => setScreen(SCREEN.ADMIN)}>Admin</button>
-            {!user ? <button className="nav-btn" onClick={() => setScreen(SCREEN.PLANS)}>Join Now</button>
-                   : <button className="nav-btn" onClick={() => setScreen(SCREEN.GAME)}>Continue</button>}
+            {!user ? (
+              <>
+                <button className="nav-link" onClick={() => setScreen(SCREEN.LOGIN)}>Log In</button>
+                <button className="nav-btn" onClick={() => setScreen(SCREEN.PLANS)}>Join Now</button>
+              </>
+            ) : (
+              <>
+                <button className="nav-link" style={{color:"var(--text-dim)",fontSize:"0.6rem"}} onClick={() => { setUser(null); setCompletedLevels([]); setCurrentLevel(0); setScreen(SCREEN.LANDING); }}>Log Out</button>
+                <button className="nav-btn" onClick={() => setScreen(SCREEN.GAME)}>My Game</button>
+              </>
+            )}
           </div>
         </nav>
 
@@ -618,6 +662,59 @@ export default function App() {
             <p style={{fontFamily:"'Cinzel Decorative',serif",color:"var(--gold)",fontSize:"1.3rem",marginBottom:"0.5rem"}}>You're not in the vault.</p>
             <p style={{color:"var(--text-dim)",fontStyle:"italic",marginBottom:"2rem"}}>Register and pay to begin.</p>
             <button className="btn-primary" onClick={() => setScreen(SCREEN.PLANS)}>Join Now</button>
+          </div>
+        )}
+
+        {/* ── LOGIN ── */}
+        {screen === SCREEN.LOGIN && (
+          <div className="register-wrap">
+            <h2 className="form-title">Welcome Back</h2>
+            <p className="form-sub">Log in to continue your journey</p>
+
+            <div className="form-group">
+              <label className="form-label">Email</label>
+              <input className="form-input" type="email" placeholder="you@email.com" value={loginEmail}
+                onChange={e => { setLoginEmail(e.target.value); setLoginError(""); }}
+                onKeyDown={e => e.key==="Enter" && handleLogin()}/>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <div style={{position:"relative"}}>
+                <input className="form-input" type={showPassword?"text":"password"} placeholder="Your password"
+                  value={loginPassword} style={{paddingRight:"3rem"}}
+                  onChange={e => { setLoginPassword(e.target.value); setLoginError(""); }}
+                  onKeyDown={e => e.key==="Enter" && handleLogin()}/>
+                <button onClick={() => setShowPassword(p=>!p)} style={{position:"absolute",right:"0.8rem",top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer",fontSize:"0.9rem"}}>
+                  {showPassword ? "🙈" : "👁️"}
+                </button>
+              </div>
+            </div>
+
+            {loginError && (
+              <div style={{background:"rgba(192,57,43,0.1)",border:"1px solid rgba(192,57,43,0.3)",color:"var(--red)",padding:"0.8rem 1rem",marginBottom:"1rem",fontSize:"0.9rem",fontStyle:"italic"}}>
+                {loginError}
+              </div>
+            )}
+
+            <div style={{background:"var(--surface2)",border:"1px solid var(--border)",padding:"1rem",marginBottom:"1.5rem"}}>
+              <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",color:"var(--gold)",letterSpacing:"0.15em",marginBottom:"0.4rem"}}>YOUR PASSWORD</p>
+              <p style={{fontSize:"0.85rem",color:"var(--text-dim)",lineHeight:1.6}}>Your password is the last 6 digits of the phone number you registered with.</p>
+              <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.65rem",color:"var(--text-dim)",marginTop:"0.3rem"}}>Example: if phone is 98765 43210 → password is <span style={{color:"var(--gold)"}}>432100</span></p>
+            </div>
+
+            <button className="btn-primary" style={{width:"100%"}} onClick={handleLogin}>Log In & Continue</button>
+            <button className="btn-secondary" style={{width:"100%",marginTop:"0.8rem"}} onClick={() => setScreen(SCREEN.LANDING)}>← Back</button>
+
+            <div style={{textAlign:"center",marginTop:"2rem"}}>
+              <p style={{fontSize:"0.9rem",color:"var(--text-dim)"}}>New player? <span style={{color:"var(--gold)",cursor:"pointer",textDecoration:"underline"}} onClick={() => setScreen(SCREEN.PLANS)}>Join Now</span></p>
+            </div>
+
+            <div style={{marginTop:"2rem",background:"var(--surface)",border:"1px solid var(--border)",padding:"1rem"}}>
+              <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",color:"var(--text-dim)",letterSpacing:"0.1em",marginBottom:"0.5rem"}}>DEMO LOGINS TO TEST</p>
+              <p style={{fontSize:"0.8rem",color:"var(--text-dim)"}}>aryan@test.com / aryan123 (Subscriber, Level 6)</p>
+              <p style={{fontSize:"0.8rem",color:"var(--text-dim)"}}>meera@test.com / meera123 (Season, Level 5)</p>
+            </div>
           </div>
         )}
 
