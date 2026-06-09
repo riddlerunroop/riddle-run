@@ -379,6 +379,7 @@ export default function App() {
   const [editingSeasonDate, setEditingSeasonDate] = useState(false);
   const [tempSeasonDate, setTempSeasonDate] = useState("2026-07-07");
   const [loginEmail, setLoginEmail]     = useState("");
+  const [agreed, setAgreed]             = useState(false);
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError]     = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -489,7 +490,8 @@ export default function App() {
   // ── REGISTER ──
   const handleRegister = () => {
     if (!formData.name||!formData.email||!formData.phone||!formData.age) { alert("Please fill all fields."); return; }
-    if (parseInt(formData.age) < 18) { alert("You must be 18 or older."); return; }
+    if (parseInt(formData.age) < 18) { alert("You must be 18 or older to participate."); return; }
+    if (!agreed) { alert("Please read and agree to the Terms & Conditions and Privacy Policy to continue."); return; }
     setScreen(SCREEN.PAYMENT);
   };
 
@@ -1222,6 +1224,109 @@ export default function App() {
               <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.65rem",color:"#4a7acc",letterSpacing:"0.1em"}}>YOUR PRIVACY MATTERS. WE COLLECT ONLY WHAT IS NECESSARY AND NEVER SELL YOUR DATA.</p>
             </div>
             <button className="btn-primary" style={{width:"100%",marginTop:"2rem"}} onClick={() => setScreen(SCREEN.LANDING)}>← Back to Home</button>
+          </div>
+        )}
+
+      {/* ── FOOTER ── */}
+        {![SCREEN.ADMIN, SCREEN.GAME].includes(screen) && (
+          <div style={{borderTop:"1px solid var(--border)",padding:"2rem",textAlign:"center",marginTop:"4rem"}}>
+            <div style={{display:"flex",gap:"2rem",justifyContent:"center",flexWrap:"wrap",marginBottom:"1rem"}}>
+              {[["Terms & Conditions",SCREEN.TC],["Privacy Policy",SCREEN.PRIVACY]].map(([label,sc])=>(
+                <button key={sc} onClick={()=>setScreen(sc)}
+                  style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",letterSpacing:"0.15em",textTransform:"uppercase",background:"none",border:"none",color:"var(--text-dim)",cursor:"pointer",transition:"color 0.2s"}}
+                  onMouseOver={e=>e.target.style.color="var(--gold)"} onMouseOut={e=>e.target.style.color="var(--text-dim)"}>
+                  {label}
+                </button>
+              ))}
+              <a href="mailto:hello@riddlerun.in"
+                style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",letterSpacing:"0.15em",textTransform:"uppercase",color:"var(--text-dim)",textDecoration:"none"}}>
+                Contact
+              </a>
+            </div>
+            <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.55rem",color:"var(--text-dim)",letterSpacing:"0.1em"}}>
+              © 2026 RIDDLE RUN · OPERATED BY ROOP SAGGAR · PATIALA, PUNJAB, INDIA
+            </p>
+            <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.5rem",color:"var(--text-dim)",letterSpacing:"0.08em",marginTop:"0.3rem"}}>
+              SKILL-BASED COMPETITION · NOT A LOTTERY OR GAMBLING ACTIVITY
+            </p>
+          </div>
+        )}
+
+        {/* ── TERMS & CONDITIONS ── */}
+        {screen === SCREEN.TC && (
+          <div style={{maxWidth:"800px",margin:"0 auto",padding:"3rem 2rem"}}>
+            <button className="btn-secondary" style={{marginBottom:"2rem",padding:"0.5rem 1.2rem",fontSize:"0.65rem"}} onClick={()=>setScreen(SCREEN.LANDING)}>← Back</button>
+            <h1 style={{fontFamily:"'Cinzel Decorative',serif",fontSize:"1.8rem",color:"var(--gold)",marginBottom:"0.5rem"}}>Terms & Conditions</h1>
+            <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",color:"var(--text-dim)",letterSpacing:"0.15em",marginBottom:"2rem"}}>EFFECTIVE DATE: JUNE 2026 · VERSION 1.0</p>
+
+            {[
+              ["1. Nature of Competition",
+                "Riddle Run is a skill-based competition. The outcome is determined entirely by the knowledge, intelligence, and reasoning ability of the player. No element of chance, luck, or randomness determines the winner. Riddle Run complies with the legal framework governing skill-based games in India as established by the Hon'ble Supreme Court of India. The competition is NOT a lottery, gambling activity, or game of chance."],
+              ["2. Eligibility",
+                "You must be at least 18 years of age and a resident of India to participate. By registering, you confirm you meet these requirements. The Operator reserves the right to request proof of age at any time and to disqualify any Player found to be under 18 without refund."],
+              ["3. Entry Fees and Refund Policy",
+                "ALL ENTRY FEES ARE STRICTLY NON-REFUNDABLE. Once payment is confirmed and your account is activated, no refund will be issued under any circumstances including change of mind, inability to solve riddles, or technical issues on the Player's end."],
+              ["4. Prize Pool",
+                "The prize pool is calculated as: Total Players × ₹100. Distribution: 1st place wins 80%, 2nd place wins 12%, 3rd place wins 8% of the prize pool. As required under Section 194B of the Income Tax Act 1961, TDS at 30% will be deducted from prize winnings exceeding ₹10,000 before disbursement."],
+              ["5. Fair Play",
+                "Using automated tools, bots, AI, or scripts to solve riddles is strictly prohibited. Sharing riddle content, answers, or hints with other players is strictly prohibited. Creating multiple accounts is prohibited. Violation of any fair play rule results in immediate disqualification without refund."],
+              ["6. Intellectual Property",
+                "All riddles, content, design, and software on the Platform are the exclusive intellectual property of the Operator. You may not copy, reproduce, or distribute any riddle or content from the Platform without prior written consent."],
+              ["7. Limitation of Liability",
+                "The Operator's total liability for any claim shall not exceed the Entry Fee paid by that Player. The Platform is provided on an 'as is' basis. The Operator is not liable for any loss arising from platform downtime, technical issues, or circumstances beyond our control."],
+              ["8. Governing Law",
+                "These Terms are governed by the laws of India. Any disputes shall be resolved by arbitration under the Arbitration and Conciliation Act 1996, with seat at Patiala, Punjab, India."],
+              ["9. Contact",
+                "For any questions regarding these Terms, please contact us at hello@riddlerun.in. We respond within 3 business days."],
+            ].map(([title, text]) => (
+              <div key={title} style={{marginBottom:"2rem"}}>
+                <h3 style={{fontFamily:"'Cinzel Decorative',serif",fontSize:"0.9rem",color:"var(--gold)",marginBottom:"0.6rem"}}>{title}</h3>
+                <p style={{fontSize:"1rem",color:"var(--text-dim)",lineHeight:1.8}}>{text}</p>
+              </div>
+            ))}
+
+            <div style={{background:"rgba(42,157,92,0.1)",border:"1px solid rgba(42,157,92,0.3)",padding:"1.2rem",marginTop:"2rem"}}>
+              <p style={{fontSize:"0.9rem",color:"var(--green)",fontStyle:"italic",lineHeight:1.6}}>By registering and paying the entry fee for Riddle Run, you confirm that you are 18 years of age or older, have read and understood these Terms in their entirety, and agree to be legally bound by them.</p>
+            </div>
+            <button className="btn-primary" style={{marginTop:"2rem"}} onClick={()=>setScreen(SCREEN.REGISTER)}>I Agree — Register Now</button>
+          </div>
+        )}
+
+        {/* ── PRIVACY POLICY ── */}
+        {screen === SCREEN.PRIVACY && (
+          <div style={{maxWidth:"800px",margin:"0 auto",padding:"3rem 2rem"}}>
+            <button className="btn-secondary" style={{marginBottom:"2rem",padding:"0.5rem 1.2rem",fontSize:"0.65rem"}} onClick={()=>setScreen(SCREEN.LANDING)}>← Back</button>
+            <h1 style={{fontFamily:"'Cinzel Decorative',serif",fontSize:"1.8rem",color:"var(--gold)",marginBottom:"0.5rem"}}>Privacy Policy</h1>
+            <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",color:"var(--text-dim)",letterSpacing:"0.15em",marginBottom:"2rem"}}>EFFECTIVE DATE: JUNE 2026 · VERSION 1.0</p>
+
+            {[
+              ["What We Collect",
+                "We collect your full name, email address, mobile phone number, and age when you register. We collect payment confirmation from Razorpay (not your card details). We collect your game progress data including completed levels and hints used. We also collect IP address and device information for security and anti-cheat purposes."],
+              ["How We Use Your Data",
+                "Your data is used to create and manage your player account, track your game progress, display your name on the leaderboard, process payments, contact you about prizes, and comply with Indian tax laws including TDS deduction under Section 194B."],
+              ["Who We Share It With",
+                "We do NOT sell your data to anyone. We share limited data only with: Razorpay (payment processing), Vercel (platform hosting), and the Indian Income Tax Department (mandatory TDS filing for prize winners). No other sharing occurs."],
+              ["Data Security",
+                "Your data is stored on encrypted servers in Mumbai, India (Supabase) and processed through Razorpay's PCI-DSS compliant systems. We use HTTPS encryption for all data transmission. Your password is never stored in plain text."],
+              ["Data Retention",
+                "Account and game data is retained for the duration of your account plus 2 years. Payment and TDS records are retained for 7 years as required by Indian tax law. Server logs are retained for 90 days."],
+              ["Your Rights (DPDP Act 2023)",
+                "Under India's Digital Personal Data Protection Act 2023, you have the right to access, correct, or delete your personal data. To exercise these rights, email hello@riddlerun.in with the subject 'Data Privacy Request'. We will respond within 30 days."],
+              ["Children's Privacy",
+                "Riddle Run is strictly for users aged 18 and above. We do not knowingly collect data from anyone under 18. If you believe a minor has registered, please notify us immediately at hello@riddlerun.in."],
+              ["Contact",
+                "Data Privacy Officer: Roop Saggar · Email: hello@riddlerun.in · Location: Patiala, Punjab, India · Response time: Within 30 days for privacy requests."],
+            ].map(([title, text]) => (
+              <div key={title} style={{marginBottom:"2rem"}}>
+                <h3 style={{fontFamily:"'Cinzel Decorative',serif",fontSize:"0.9rem",color:"var(--gold)",marginBottom:"0.6rem"}}>{title}</h3>
+                <p style={{fontSize:"1rem",color:"var(--text-dim)",lineHeight:1.8}}>{text}</p>
+              </div>
+            ))}
+
+            <div style={{background:"rgba(42,157,92,0.1)",border:"1px solid rgba(42,157,92,0.3)",padding:"1.2rem",marginTop:"2rem"}}>
+              <p style={{fontSize:"0.9rem",color:"var(--green)",fontStyle:"italic",lineHeight:1.6}}>We are committed to protecting your privacy. We collect only what is necessary, use it only for running the competition, and never sell it to anyone.</p>
+            </div>
+            <button className="btn-primary" style={{marginTop:"2rem"}} onClick={()=>setScreen(SCREEN.REGISTER)}>Back to Registration</button>
           </div>
         )}
 
