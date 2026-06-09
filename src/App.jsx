@@ -40,8 +40,9 @@ const MOCK_LEADERBOARD = [
 // Simulated user store (in production this would be your database)
 // Each user: { email, password, name, phone, plan, isSub, completedLevels, hintsUsed, joinedOn }
 let REGISTERED_USERS = [
-  { email:"aryan@test.com",  password:"aryan123",  name:"Aryan S.",  phone:"9999999991", plan:"monthly",  isSub:true,  completedLevels:[0,1,2,3,4,5], hintsUsed:1, joinedOn:"2026-07-07" },
-  { email:"meera@test.com",  password:"meera123",  name:"Meera K.",  phone:"9999999992", plan:"season",   isSub:false, completedLevels:[0,1,2,3,4],   hintsUsed:0, joinedOn:"2026-07-07" },
+  { email:"aryan@test.com",       password:"aryan123",  name:"Aryan S.",  phone:"9999999991", plan:"monthly",  isSub:true,  completedLevels:[0,1,2,3,4,5], hintsUsed:1, joinedOn:"2026-07-07" },
+  { email:"meera@test.com",       password:"meera123",  name:"Meera K.",  phone:"9999999992", plan:"season",   isSub:false, completedLevels:[0,1,2,3,4],   hintsUsed:0, joinedOn:"2026-07-07" },
+  { email:"roop.saggar@gmail.com", password:"roop123",  name:"Roop",      phone:"9999999993", plan:"season",   isSub:false, completedLevels:[],             hintsUsed:0, joinedOn:"2026-06-06" },
 ];
 
 const SCREEN = { LANDING:"landing", PLANS:"plans", REGISTER:"register", PAYMENT:"payment", GAME:"game", LEADERBOARD:"leaderboard", ADMIN:"admin", LOGIN:"login" };
@@ -338,13 +339,7 @@ export default function App() {
     return () => clearInterval(t);
   }, [riddles, daysSinceStart]);
 
-  // Load Razorpay SDK
-  useEffect(() => {
-    const s = document.createElement("script");
-    s.src = "https://checkout.razorpay.com/v1/checkout.js";
-    document.body.appendChild(s);
-    return () => { if(document.body.contains(s)) document.body.removeChild(s); };
-  }, []);
+  // Razorpay SDK loaded via index.html <script> tag
 
   // ── PAYMENT ──
   const handlePayment = () => {
