@@ -4,6 +4,83 @@ import { useState, useEffect, useRef } from "react";
 const ENTRY_FEE = 199;
 const PRIZE_PER_PLAYER = 100;
 const RAZORPAY_KEY = "rzp_test_SyINirv7CvyYR7";
+
+// ─── SUPABASE CONFIG ─────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://jgcyjrxryriqltixzytt.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpnY3lqcnhyeXJpcWx0aXh6eXR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEwMjEwMTAsImV4cCI6MjA5NjU5NzAxMH0.udyNBilBveBZxyyojxT__Qc20ozydKiAz1l6DsmZUYQ";
+
+// Supabase API helper
+const supabase = {
+  async query(endpoint, options = {}) {
+    const res = await fetch(SUPABASE_URL + endpoint, {
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+        "Prefer": options.prefer || "",
+        ...options.headers
+      },
+      ...options
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err);
+    }
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  },
+
+  async getPlayer(email) {
+    const data = await this.query(`/rest/v1/players?email=eq.${encodeURIComponent(email)}&select=*`);
+    return data?.[0] || null;
+  },
+
+  async createPlayer(player) {
+    return await this.query("/rest/v1/players", {
+      method: "POST",
+      prefer: "return=representation",
+      body: JSON.stringify(player)
+    });
+  },
+
+  async getProgress(playerId) {
+    const data = await this.query(`/rest/v1/progress?player_id=eq.${playerId}&season=eq.1&select=*`);
+    return data?.[0] || null;
+  },
+
+  async saveProgress(playerId, completedLevels, currentLevel, hintsUsed) {
+    // Try update first
+    const existing = await this.getProgress(playerId);
+    if (existing) {
+      return await this.query(`/rest/v1/progress?player_id=eq.${playerId}&season=eq.1`, {
+        method: "PATCH",
+        prefer: "return=representation",
+        body: JSON.stringify({ completed_levels: completedLevels, current_level: currentLevel, hints_used: hintsUsed, last_updated: new Date().toISOString() })
+      });
+    } else {
+      return await this.query("/rest/v1/progress", {
+        method: "POST",
+        prefer: "return=representation",
+        body: JSON.stringify({ player_id: playerId, season: 1, completed_levels: completedLevels, current_level: currentLevel, hints_used: hintsUsed })
+      });
+    }
+  },
+
+  async savePayment(playerId, paymentId, amount, plan) {
+    return await this.query("/rest/v1/payments", {
+      method: "POST",
+      body: JSON.stringify({ player_id: playerId, payment_id: paymentId, amount, plan, season: 1, status: "success" })
+    });
+  },
+
+  async getPlayerCount() {
+    const res = await fetch(SUPABASE_URL + "/rest/v1/players?select=id", {
+      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY, "Prefer": "count=exact" }
+    });
+    const count = res.headers.get("content-range");
+    return count ? parseInt(count.split("/")[1]) || 0 : 0;
+  }
+};
 const ADMIN_PASSWORD = "admin123"; // ← CHANGE THIS BEFORE GOING LIVE
 const GAME_START_DATE = new Date("2026-07-07T00:00:00"); // ← SET YOUR LAUNCH DATE
 
@@ -45,7 +122,7 @@ let REGISTERED_USERS = [
   { email:"roop.saggar@gmail.com", password:"roop123",  name:"Roop",      phone:"9999999993", plan:"season",   isSub:false, completedLevels:[],             hintsUsed:0, joinedOn:"2026-06-06" },
 ];
 
-const SCREEN = { LANDING:"landing", PLANS:"plans", REGISTER:"register", PAYMENT:"payment", GAME:"game", LEADERBOARD:"leaderboard", ADMIN:"admin", LOGIN:"login" };
+const SCREEN = { LANDING:"landing", PLANS:"plans", REGISTER:"register", PAYMENT:"payment", GAME:"game", LEADERBOARD:"leaderboard", ADMIN:"admin", LOGIN:"login", TC:"tc", PRIVACY:"privacy" };
 const ADMIN_TAB = { STATS:"stats", SEASON:"season", RIDDLES:"riddles", PLAYERS:"players" };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -310,6 +387,9 @@ export default function App() {
   const [savedLevel, setSavedLevel]     = useState(null);
   const [countdown, setCountdown]       = useState("");
   const [displayPrize, setDisplayPrize] = useState(0);
+  const [playerId, setPlayerId]         = useState(null);
+  const [dbLoading, setDbLoading]       = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
   const answerRef = useRef(null);
 
   const prizePool        = totalPlayers * PRIZE_PER_PLAYER;
@@ -325,6 +405,13 @@ export default function App() {
 
   // Which riddles are currently unlocked for EVERYONE (based on game date)
   const globalUnlockedCount = gameStarted ? riddles.filter(r => r.unlockDay <= daysSinceStart).length : 0;
+
+  // Load real player count from Supabase
+  useEffect(() => {
+    supabase.getPlayerCount().then(count => {
+      if (count > 0) setTotalPlayers(count);
+    }).catch(() => {}); // silently fail if DB not ready
+  }, []);
 
   // Animated prize counter
   useEffect(() => {
@@ -363,9 +450,32 @@ export default function App() {
       name: "RIDDLE RUN", description: selectedPlanData?.label + " — Season 1",
       prefill: { name: formData.name, email: formData.email, contact: formData.phone },
       theme: { color: "#c9a84c" },
-      handler: (response) => {
-        const newUser = { email: formData.email, password: formData.phone.replace(/\s/g,"").slice(-6), name: formData.name, phone: formData.phone, plan: selectedPlan, isSub: selectedPlan !== "season", completedLevels: [], hintsUsed: 0, joinedOn: new Date().toISOString().slice(0,10) };
-        REGISTERED_USERS.push(newUser);
+      handler: async (response) => {
+        const password = formData.phone.replace(/\s/g,"").slice(-6);
+        try {
+          // Save to Supabase
+          const playerData = {
+            name: formData.name,
+            email: formData.email.toLowerCase().trim(),
+            phone: formData.phone,
+            age: parseInt(formData.age),
+            password: password,
+            plan: selectedPlan,
+            is_sub: selectedPlan !== "season",
+            payment_id: response.razorpay_payment_id,
+          };
+          const saved = await supabase.createPlayer(playerData);
+          if (saved?.[0]?.id) {
+            setPlayerId(saved[0].id);
+            await supabase.saveProgress(saved[0].id, [], 0, 0);
+            await supabase.savePayment(saved[0].id, response.razorpay_payment_id, selectedPlanData?.price, selectedPlan);
+          }
+        } catch (err) {
+          console.error("DB save error:", err);
+        }
+        // Always continue to game even if DB fails
+        const newLocalUser = { email: formData.email, password: password, name: formData.name, phone: formData.phone, plan: selectedPlan, isSub: selectedPlan !== "season", completedLevels: [], hintsUsed: 0, joinedOn: new Date().toISOString().slice(0,10) };
+        REGISTERED_USERS.push(newLocalUser);
         setUser({ name: formData.name, email: formData.email, plan: selectedPlan, isSub: selectedPlan !== "season", paymentId: response.razorpay_payment_id });
         setTotalPlayers(p => p + 1);
         setScreen(SCREEN.GAME);
@@ -384,22 +494,55 @@ export default function App() {
   };
 
   // ── LOGIN ──
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setLoginError("");
     if (!loginEmail || !loginPassword) { setLoginError("Please enter your email and password."); return; }
-    const found = REGISTERED_USERS.find(u => u.email.toLowerCase() === loginEmail.toLowerCase() && u.password === loginPassword);
-    if (!found) { setLoginError("Email or password is incorrect. Please try again."); return; }
-    // Restore full session
-    setUser({ name: found.name, email: found.email, plan: found.plan, isSub: found.isSub });
-    setCompletedLevels(found.completedLevels);
-    setHintsUsed(found.hintsUsed);
-    setCurrentLevel(found.completedLevels.length > 0 ? found.completedLevels[found.completedLevels.length - 1] : 0);
-    setLoginEmail(""); setLoginPassword(""); setLoginError("");
-    setScreen(SCREEN.GAME);
+    setLoginLoading(true);
+    try {
+      // Try Supabase first
+      const player = await supabase.getPlayer(loginEmail.toLowerCase().trim());
+      if (player && player.password === loginPassword) {
+        const progress = await supabase.getProgress(player.id);
+        const completed = progress?.completed_levels || [];
+        const currentLvl = progress?.current_level || 0;
+        setUser({ name: player.name, email: player.email, plan: player.plan, isSub: player.is_sub });
+        setPlayerId(player.id);
+        setCompletedLevels(completed);
+        setHintsUsed(progress?.hints_used || 0);
+        setCurrentLevel(currentLvl);
+        setLoginEmail(""); setLoginPassword(""); setLoginError("");
+        setScreen(SCREEN.GAME);
+        return;
+      }
+      // Fallback to local demo users
+      const found = REGISTERED_USERS.find(u => u.email.toLowerCase() === loginEmail.toLowerCase() && u.password === loginPassword);
+      if (found) {
+        setUser({ name: found.name, email: found.email, plan: found.plan, isSub: found.isSub });
+        setCompletedLevels(found.completedLevels);
+        setHintsUsed(found.hintsUsed);
+        setCurrentLevel(found.completedLevels.length > 0 ? found.completedLevels[found.completedLevels.length - 1] : 0);
+        setLoginEmail(""); setLoginPassword(""); setLoginError("");
+        setScreen(SCREEN.GAME);
+        return;
+      }
+      setLoginError("Email or password is incorrect. Please try again.");
+    } catch (err) {
+      setLoginError("Connection error. Please try again.");
+    } finally {
+      setLoginLoading(false);
+    }
   };
 
-  // Save progress to mock store (in production: API call to save to database)
-  const saveProgress = (newCompleted) => {
+  // Save progress to Supabase
+  const saveProgress = async (newCompleted, newLevel, newHints) => {
+    if (playerId) {
+      try {
+        await supabase.saveProgress(playerId, newCompleted, newLevel ?? currentLevel, newHints ?? hintsUsed);
+      } catch (err) {
+        console.error("Progress save error:", err);
+      }
+    }
+    // Also update local store as backup
     const idx = REGISTERED_USERS.findIndex(u => u.email === user?.email);
     if (idx !== -1) REGISTERED_USERS[idx].completedLevels = newCompleted;
   };
@@ -419,7 +562,7 @@ export default function App() {
       setFeedback({ type:"success", msg:"Correct! Well done. Proceeding..." });
       const newCompleted = [...completedLevels, currentLevel];
       setCompletedLevels(newCompleted);
-      saveProgress(newCompleted);
+      saveProgress(newCompleted, currentLevel, hintsUsed);
       setTimeout(() => {
         const nextIdx = currentLevel + 1;
         if (nextIdx >= riddles.length) {
@@ -526,6 +669,12 @@ export default function App() {
                 <div className="step"><span className="step-num">4</span><div className="step-icon">🏆</div><p className="step-title">Win the Prize Pool</p><p className="step-desc">First to clear all 10 levels wins. More players = bigger prize.</p></div>
               </div>
             </div>
+            {/* Footer links */}
+            <div style={{display:"flex",gap:"2rem",justifyContent:"center",marginTop:"3rem",paddingTop:"2rem",borderTop:"1px solid var(--border)"}}>
+              <span style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",color:"var(--text-dim)",letterSpacing:"0.15em",cursor:"pointer",textTransform:"uppercase"}} onClick={() => setScreen(SCREEN.TC)}>Terms & Conditions</span>
+              <span style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",color:"var(--text-dim)",letterSpacing:"0.15em",cursor:"pointer",textTransform:"uppercase"}} onClick={() => setScreen(SCREEN.PRIVACY)}>Privacy Policy</span>
+              <span style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",color:"var(--text-dim)",letterSpacing:"0.15em",textTransform:"uppercase"}}>© 2026 Riddle Run</span>
+            </div>
           </div>
         )}
 
@@ -574,7 +723,14 @@ export default function App() {
               <div className="fee-row"><span className="fee-label">{selectedPlanData?.label}</span><span className="fee-amount">₹{selectedPlanData?.price}</span></div>
               <p className="fee-note">{selectedPlan==="season"?"₹100 goes to the prize pool":"✦ Subscriber perks activated"}</p>
             </div>
-            <button className="btn-primary" style={{width:"100%"}} onClick={handleRegister}>Proceed to Payment</button>
+            <div style={{display:"flex",gap:"0.8rem",alignItems:"flex-start",marginBottom:"1.5rem",background:"var(--surface)",border:"1px solid var(--border)",padding:"1rem"}}>
+              <input type="checkbox" id="tc-agree" style={{marginTop:"0.3rem",accentColor:"var(--gold)",cursor:"pointer"}}
+                onChange={e => document.getElementById("register-btn").disabled = !e.target.checked}/>
+              <label htmlFor="tc-agree" style={{fontSize:"0.85rem",color:"var(--text-dim)",lineHeight:1.6,cursor:"pointer"}}>
+                I have read and agree to the <span style={{color:"var(--gold)",textDecoration:"underline",cursor:"pointer"}} onClick={() => setScreen(SCREEN.TC)}>Terms & Conditions</span> and <span style={{color:"var(--gold)",textDecoration:"underline",cursor:"pointer"}} onClick={() => setScreen(SCREEN.PRIVACY)}>Privacy Policy</span>. I confirm I am 18 years or older.
+              </label>
+            </div>
+            <button id="register-btn" className="btn-primary" style={{width:"100%",opacity:0.5}} disabled onClick={handleRegister}>Proceed to Payment</button>
             <button className="btn-secondary" style={{width:"100%",marginTop:"0.8rem"}} onClick={() => setScreen(SCREEN.PLANS)}>← Change Plan</button>
           </div>
         )}
@@ -712,7 +868,7 @@ export default function App() {
               <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.65rem",color:"var(--text-dim)",marginTop:"0.3rem"}}>Example: if phone is 98765 43210 → password is <span style={{color:"var(--gold)"}}>432100</span></p>
             </div>
 
-            <button className="btn-primary" style={{width:"100%"}} onClick={handleLogin}>Log In & Continue</button>
+            <button className="btn-primary" style={{width:"100%"}} onClick={handleLogin} disabled={loginLoading}>{loginLoading ? "Logging in..." : "Log In & Continue"}</button>
             <button className="btn-secondary" style={{width:"100%",marginTop:"0.8rem"}} onClick={() => setScreen(SCREEN.LANDING)}>← Back</button>
 
             <div style={{textAlign:"center",marginTop:"2rem"}}>
@@ -997,6 +1153,75 @@ export default function App() {
                 )}
               </>
             )}
+          </div>
+        )}
+
+
+        {/* ── TERMS & CONDITIONS ── */}
+        {screen === SCREEN.TC && (
+          <div style={{maxWidth:"800px",margin:"0 auto",padding:"3rem 2rem"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"2rem",paddingBottom:"1rem",borderBottom:"1px solid var(--border)"}}>
+              <h1 style={{fontFamily:"'Cinzel Decorative',serif",fontSize:"1.5rem",color:"var(--gold)"}}>Terms & Conditions</h1>
+              <button className="btn-secondary" style={{padding:"0.5rem 1rem",fontSize:"0.65rem"}} onClick={() => setScreen(SCREEN.LANDING)}>← Back</button>
+            </div>
+            <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",color:"var(--text-dim)",letterSpacing:"0.15em",marginBottom:"2rem"}}>EFFECTIVE DATE: JUNE 2026 · VERSION 1.0</p>
+
+            {[
+              ["1. Nature of Competition", "Riddle Run is a skill-based competition. The outcome is determined entirely by the knowledge, intelligence, and reasoning ability of the Player. No element of chance, luck, or randomness determines the winner. Riddle Run is NOT a lottery, gambling activity, or game of chance. The winner is determined by correctly solving all 10 riddles, where speed of solving is the tiebreaker. Both factors are entirely within the Player's control."],
+              ["2. Eligibility", "You must be at least 18 years of age to participate. Riddle Run is currently open to residents of India only. By registering, you confirm you meet these requirements. The Operator reserves the right to verify your age and identity at any time."],
+              ["3. Entry Fees & Refunds", "The entry fee is ₹199 per season. ALL ENTRY FEES ARE STRICTLY NON-REFUNDABLE. Once payment is confirmed and your account is activated, no refund will be issued under any circumstances including change of mind, inability to solve riddles, or disqualification due to violation of these Terms."],
+              ["4. Prize Pool & Winner", "The prize pool is calculated as: Total Registered Players × ₹100. The winner is the first Player to correctly answer all 10 riddles. Prizes are distributed as: 1st Place 80%, 2nd Place 12%, 3rd Place 8% of the prize pool. As required under Section 194B of the Income Tax Act, TDS at 30% will be deducted from prize winnings exceeding ₹10,000 before disbursement."],
+              ["5. Game Rules & Fair Play", "The following are strictly prohibited and will result in immediate disqualification without refund: using automated tools or AI to solve riddles; sharing riddle text or answers with other players; creating multiple accounts; attempting to access or modify the Platform's backend; any form of cheating or collusion. All riddles are original works — sharing them publicly violates our intellectual property rights."],
+              ["6. Intellectual Property", "All riddles, content, design, and software on the Platform are the exclusive intellectual property of the Operator and are protected under the Copyright Act 1957 of India. You may not copy, reproduce, or distribute any content from the Platform without prior written consent."],
+              ["7. Limitation of Liability", "The Operator's total liability to any Player shall not exceed the Entry Fee paid by that Player for the relevant Season. We do not guarantee uninterrupted platform availability. We are not liable for losses arising from technical issues, internet connectivity problems, or force majeure events."],
+              ["8. Governing Law & Disputes", "These Terms are governed by the laws of India. Disputes shall first be resolved amicably. If unresolved, disputes shall be referred to arbitration under the Arbitration and Conciliation Act 1996. The seat of arbitration shall be Patiala, Punjab, India."],
+              ["9. Changes to Terms", "The Operator reserves the right to modify these Terms at any time. Material changes will be communicated via your registered email. Continued participation constitutes acceptance of revised Terms."],
+              ["10. Contact", "For any questions regarding these Terms, please contact: hello@riddlerun.in. Response time: within 3 business days."],
+            ].map(([title, text]) => (
+              <div key={title} style={{marginBottom:"2rem",paddingBottom:"2rem",borderBottom:"1px solid rgba(201,168,76,0.1)"}}>
+                <h3 style={{fontFamily:"'Space Mono',monospace",fontSize:"0.7rem",letterSpacing:"0.15em",color:"var(--gold)",textTransform:"uppercase",marginBottom:"0.8rem"}}>{title}</h3>
+                <p style={{fontSize:"0.95rem",color:"var(--text-dim)",lineHeight:1.8}}>{text}</p>
+              </div>
+            ))}
+
+            <div style={{background:"rgba(42,157,92,0.1)",border:"1px solid rgba(42,157,92,0.3)",padding:"1.5rem",textAlign:"center",marginTop:"2rem"}}>
+              <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.65rem",color:"#2a9d5c",letterSpacing:"0.1em"}}>BY REGISTERING AND PAYING THE ENTRY FEE, YOU CONFIRM YOU HAVE READ AND AGREE TO THESE TERMS.</p>
+            </div>
+            <button className="btn-primary" style={{width:"100%",marginTop:"2rem"}} onClick={() => setScreen(SCREEN.LANDING)}>← Back to Home</button>
+          </div>
+        )}
+
+        {/* ── PRIVACY POLICY ── */}
+        {screen === SCREEN.PRIVACY && (
+          <div style={{maxWidth:"800px",margin:"0 auto",padding:"3rem 2rem"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"2rem",paddingBottom:"1rem",borderBottom:"1px solid var(--border)"}}>
+              <h1 style={{fontFamily:"'Cinzel Decorative',serif",fontSize:"1.5rem",color:"var(--gold)"}}>Privacy Policy</h1>
+              <button className="btn-secondary" style={{padding:"0.5rem 1rem",fontSize:"0.65rem"}} onClick={() => setScreen(SCREEN.LANDING)}>← Back</button>
+            </div>
+            <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",color:"var(--text-dim)",letterSpacing:"0.15em",marginBottom:"2rem"}}>EFFECTIVE DATE: JUNE 2026 · VERSION 1.0</p>
+
+            {[
+              ["What We Collect", "We collect only what is necessary to operate the competition: your full name, email address, mobile phone number, age, and payment confirmation from Razorpay. We also collect game progress data to track your level completion and competition standing. We do NOT collect your Aadhaar, passport, or biometric data."],
+              ["How We Use Your Data", "Your data is used for: creating and managing your player account; processing your entry fee payment through Razorpay; tracking your game progress and leaderboard position; contacting you regarding prize disbursement; and complying with Indian tax laws including TDS deduction under Section 194B."],
+              ["Who We Share With", "We do NOT sell your personal data to anyone. We share your data only with: Razorpay (for payment processing); Vercel and Supabase (for platform hosting and database); and the Indian Income Tax Department (for mandatory TDS filing on prize winnings above ₹10,000). No other third parties receive your data."],
+              ["Data Storage & Security", "Your data is stored on Supabase's servers in South Asia (Mumbai). All data is encrypted at rest and in transit via HTTPS. Payment details are handled exclusively by Razorpay and never stored on our servers. We implement access controls so only the platform operator can access your personal data."],
+              ["Data Retention", "Account and game data is retained for the duration of your active account plus 2 years. Payment and TDS records are retained for 7 years as required by Indian tax law. Server logs are retained for 90 days."],
+              ["Your Rights (DPDP Act 2023)", "Under India's Digital Personal Data Protection Act 2023, you have the right to: access your personal data; correct inaccurate data; request deletion of your data (subject to legal retention obligations); and raise grievances about data processing. To exercise these rights, email hello@riddlerun.in."],
+              ["Cookies", "We use minimal cookies for session management and game state only. We do NOT use advertising cookies, Google Analytics, or Facebook Pixel. We do not share cookie data with any advertising networks."],
+              ["Children's Privacy", "Riddle Run is strictly for users aged 18 and above. We do not knowingly collect data from anyone under 18. If you believe a minor has registered, please notify us at hello@riddlerun.in immediately."],
+              ["Changes to Policy", "We may update this Privacy Policy periodically. Material changes will be communicated via your registered email address."],
+              ["Contact & Grievance Officer", "Grievance Officer: Roop Saggar. Email: hello@riddlerun.in. Location: Patiala, Punjab, India. Response time: within 30 days."],
+            ].map(([title, text]) => (
+              <div key={title} style={{marginBottom:"2rem",paddingBottom:"2rem",borderBottom:"1px solid rgba(201,168,76,0.1)"}}>
+                <h3 style={{fontFamily:"'Space Mono',monospace",fontSize:"0.7rem",letterSpacing:"0.15em",color:"var(--gold)",textTransform:"uppercase",marginBottom:"0.8rem"}}>{title}</h3>
+                <p style={{fontSize:"0.95rem",color:"var(--text-dim)",lineHeight:1.8}}>{text}</p>
+              </div>
+            ))}
+
+            <div style={{background:"rgba(26,58,122,0.1)",border:"1px solid rgba(26,58,122,0.3)",padding:"1.5rem",textAlign:"center",marginTop:"2rem"}}>
+              <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.65rem",color:"#4a7acc",letterSpacing:"0.1em"}}>YOUR PRIVACY MATTERS. WE COLLECT ONLY WHAT IS NECESSARY AND NEVER SELL YOUR DATA.</p>
+            </div>
+            <button className="btn-primary" style={{width:"100%",marginTop:"2rem"}} onClick={() => setScreen(SCREEN.LANDING)}>← Back to Home</button>
           </div>
         )}
 
