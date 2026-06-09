@@ -46,7 +46,7 @@ let REGISTERED_USERS = [
 ];
 
 const SCREEN = { LANDING:"landing", PLANS:"plans", REGISTER:"register", PAYMENT:"payment", GAME:"game", LEADERBOARD:"leaderboard", ADMIN:"admin", LOGIN:"login" };
-const ADMIN_TAB = { STATS:"stats", RIDDLES:"riddles", PLAYERS:"players" };
+const ADMIN_TAB = { STATS:"stats", SEASON:"season", RIDDLES:"riddles", PLAYERS:"players" };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function getDaysSinceStart() {
@@ -298,6 +298,9 @@ export default function App() {
   const [adminPass, setAdminPass]       = useState("");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminTab, setAdminTab]         = useState(ADMIN_TAB.STATS);
+  const [seasonStart, setSeasonStart]   = useState("2026-07-07"); // ← Your launch date
+  const [editingSeasonDate, setEditingSeasonDate] = useState(false);
+  const [tempSeasonDate, setTempSeasonDate] = useState("2026-07-07");
   const [loginEmail, setLoginEmail]     = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError]     = useState("");
@@ -313,10 +316,15 @@ export default function App() {
   const totalRevenue     = totalPlayers * ENTRY_FEE;
   const platformEarnings = totalRevenue - prizePool;
   const selectedPlanData = PLANS.find(p => p.id === selectedPlan);
-  const daysSinceStart   = getDaysSinceStart();
+  // Use admin-set season start date
+  const gameStartDate = new Date(seasonStart + "T00:00:00");
+  const now = new Date();
+  const diffMs = now - gameStartDate;
+  const daysSinceStart = diffMs > 0 ? Math.max(1, Math.floor(diffMs / (1000*60*60*24)) + 1) : 0;
+  const gameStarted = diffMs > 0;
 
   // Which riddles are currently unlocked for EVERYONE (based on game date)
-  const globalUnlockedCount = riddles.filter(r => r.unlockDay <= daysSinceStart).length;
+  const globalUnlockedCount = gameStarted ? riddles.filter(r => r.unlockDay <= daysSinceStart).length : 0;
 
   // Animated prize counter
   useEffect(() => {
@@ -328,16 +336,22 @@ export default function App() {
   // Live countdown ticker
   useEffect(() => {
     const tick = () => {
-      const nextRiddle = riddles.find(r => r.unlockDay > daysSinceStart);
+      const gsd = new Date(seasonStart + "T00:00:00");
+      const nowMs = new Date();
+      const dss = nowMs > gsd ? Math.max(1, Math.floor((nowMs - gsd) / (1000*60*60*24)) + 1) : 0;
+      const nextRiddle = riddles.find(r => r.unlockDay > dss);
       if (nextRiddle) {
-        const unlockDate = getUnlockDate(nextRiddle.unlockDay);
-        setCountdown(formatCountdown(unlockDate) || "");
+        const d = new Date(gsd);
+        d.setDate(d.getDate() + nextRiddle.unlockDay - 1);
+        setCountdown(formatCountdown(d) || "");
+      } else {
+        setCountdown("");
       }
     };
     tick();
     const t = setInterval(tick, 60000);
     return () => clearInterval(t);
-  }, [riddles, daysSinceStart]);
+  }, [riddles, seasonStart]);
 
   // Razorpay SDK loaded via index.html <script> tag
 
@@ -764,7 +778,7 @@ export default function App() {
               <>
                 {/* Admin Tabs */}
                 <div className="admin-tabs">
-                  {[[ADMIN_TAB.STATS,"📊 Stats"],[ADMIN_TAB.RIDDLES,"🧩 Riddles"],[ADMIN_TAB.PLAYERS,"👥 Players"]].map(([tab,label]) => (
+                  {[[ADMIN_TAB.STATS,"📊 Stats"],[ADMIN_TAB.SEASON,"📅 Season"],[ADMIN_TAB.RIDDLES,"🧩 Riddles"],[ADMIN_TAB.PLAYERS,"👥 Players"]].map(([tab,label]) => (
                     <button key={tab} className={`admin-tab ${adminTab===tab?"active":""}`} onClick={() => setAdminTab(tab)}>{label}</button>
                   ))}
                 </div>
@@ -797,7 +811,111 @@ export default function App() {
                   </>
                 )}
 
-                {/* ── RIDDLES TAB ── */}
+                {/* ── SEASON TAB ── */}
+                {adminTab === ADMIN_TAB.SEASON && (
+                  <>
+                    <div className="info-box">
+                      <p className="info-box-title">CURRENT SEASON STATUS</p>
+                      <p className="info-box-text">
+                        {gameStarted
+                          ? <>Season is <strong style={{color:"var(--green)"}}>LIVE</strong> · Day <strong style={{color:"var(--gold)"}}>{daysSinceStart}</strong> of 30 · <strong style={{color:"var(--gold)"}}>{globalUnlockedCount}</strong> of 10 levels unlocked</>
+                          : <>Season starts on <strong style={{color:"var(--gold)"}}>{new Date(seasonStart).toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric"})}</strong> — not started yet</>}
+                      </p>
+                    </div>
+
+                    {/* Season Start Date */}
+                    <div className="riddle-editor">
+                      <div className="riddle-editor-header">
+                        <span className="riddle-level-badge">📅 Season Launch Date</span>
+                        <span className="riddle-unlock-info" style={{color:gameStarted?"var(--green)":"var(--gold)"}}>
+                          {gameStarted ? "🟢 Season Live" : "⏳ Upcoming"}
+                        </span>
+                      </div>
+                      {editingSeasonDate ? (
+                        <div>
+                          <p className="riddle-field-label">Set Launch Date</p>
+                          <input className="form-input" type="date" value={tempSeasonDate}
+                            onChange={e => setTempSeasonDate(e.target.value)}
+                            style={{marginBottom:"0.8rem"}}/>
+                          <div style={{display:"flex",gap:"0.8rem",alignItems:"center"}}>
+                            <button className="save-btn" onClick={() => { setSeasonStart(tempSeasonDate); setEditingSeasonDate(false); setSavedLevel("date"); setTimeout(()=>setSavedLevel(null),2000); }}>✓ Save Date</button>
+                            <button className="hint-btn" onClick={() => setEditingSeasonDate(false)}>Cancel</button>
+                            {savedLevel === "date" && <span className="saved-badge">✓ Date Saved!</span>}
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <p style={{fontSize:"1.1rem",color:"var(--gold)",fontFamily:"'Cinzel Decorative',serif",marginBottom:"0.5rem"}}>
+                            {new Date(seasonStart).toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric"})}
+                          </p>
+                          <button className="hint-btn" onClick={() => { setTempSeasonDate(seasonStart); setEditingSeasonDate(true); }}>✏️ Change launch date</button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Level Unlock Schedule */}
+                    <div className="riddle-editor">
+                      <div className="riddle-editor-header">
+                        <span className="riddle-level-badge">🗓️ Full Level Unlock Schedule</span>
+                      </div>
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th className="admin-th">Level</th>
+                            <th className="admin-th">Unlock Date</th>
+                            <th className="admin-th">Day</th>
+                            <th className="admin-th">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {riddles.map((r) => {
+                            const unlockDate = new Date(seasonStart + "T00:00:00");
+                            unlockDate.setDate(unlockDate.getDate() + r.unlockDay - 1);
+                            const isLive = gameStarted && r.unlockDay <= daysSinceStart;
+                            const isNext = gameStarted && !isLive && riddles.filter(x => x.unlockDay <= daysSinceStart).length === r.id - 1;
+                            return (
+                              <tr key={r.id}>
+                                <td className="admin-td">
+                                  <span style={{fontFamily:"'Space Mono',monospace",fontSize:"0.7rem",color:"var(--gold)"}}>Level {r.id}</span>
+                                  <br/><span style={{fontSize:"0.8rem",color:"var(--text-dim)"}}>{r.title}</span>
+                                </td>
+                                <td className="admin-td" style={{fontFamily:"'Space Mono',monospace",fontSize:"0.75rem"}}>
+                                  {unlockDate.toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"})}
+                                </td>
+                                <td className="admin-td" style={{fontFamily:"'Space Mono',monospace",fontSize:"0.75rem",color:"var(--text-dim)"}}>
+                                  Day {r.unlockDay}
+                                </td>
+                                <td className="admin-td">
+                                  <span style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",padding:"0.2rem 0.5rem",
+                                    background: isLive ? "rgba(42,157,92,0.1)" : isNext ? "rgba(201,168,76,0.1)" : "rgba(255,255,255,0.05)",
+                                    color: isLive ? "var(--green)" : isNext ? "var(--gold)" : "var(--text-dim)",
+                                    border: `1px solid ${isLive ? "rgba(42,157,92,0.3)" : isNext ? "var(--border)" : "rgba(255,255,255,0.05)"}`}}>
+                                    {isLive ? "🟢 LIVE" : isNext ? "⏭ NEXT" : "🔒 UPCOMING"}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* New Season */}
+                    <div className="riddle-editor" style={{borderLeft:"3px solid var(--gold)"}}>
+                      <div className="riddle-editor-header">
+                        <span className="riddle-level-badge">🔄 Start New Season</span>
+                      </div>
+                      <p style={{fontSize:"0.9rem",color:"var(--text-dim)",marginBottom:"1rem",lineHeight:1.6}}>
+                        When Season 1 ends, set a new launch date here to automatically start Season 2. All level unlock dates will recalculate from the new date. Remember to update your riddles in the Riddles tab before launching.
+                      </p>
+                      <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.65rem",color:"var(--gold)",letterSpacing:"0.1em"}}>
+                        SEASON END DATE: {new Date(new Date(seasonStart).getTime() + 29*24*60*60*1000).toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric"})}
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {/* ── RIDDLES TAB ── */}}
                 {adminTab === ADMIN_TAB.RIDDLES && (
                   <>
                     <div className="info-box">
