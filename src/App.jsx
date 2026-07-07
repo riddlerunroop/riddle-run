@@ -523,12 +523,12 @@ export default function App() {
 
         {/* NAV */}
         <nav className="nav">
-          <div className="nav-logo" onClick={()=>setScreen(SCREEN.LANDING)}>RIDDLE RUN</div>
+          <div className="nav-logo" onClick={()=>setScreen(SCREEN.LANDING)} onDoubleClick={()=>setScreen(SCREEN.ADMIN)} style={{userSelect:"none"}}>RIDDLE RUN</div>
           <div className="nav-links">
             <button className="nav-link" onClick={()=>setScreen(SCREEN.LEADERBOARD)}>Leaderboard</button>
             {user && <button className="nav-link" onClick={()=>setScreen(SCREEN.GAME)}>My Game</button>}
             {user && <button className="nav-link" onClick={()=>setScreen(SCREEN.REFERRAL)}>Refer & Earn</button>}
-            <button className="nav-link" onClick={()=>setScreen(SCREEN.ADMIN)}>Admin</button>
+            {/* Admin hidden - access via triple click on logo or ?admin=true */}
             {!user ? (
               <><button className="nav-link" onClick={()=>setScreen(SCREEN.LOGIN)}>Log In</button>
               <button className="nav-btn" onClick={()=>setScreen(SCREEN.PLANS)}>Subscribe ₹200</button></>
