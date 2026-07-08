@@ -571,6 +571,34 @@ export default function App() {
               <div className="stat"><span className="stat-number">₹200</span><span className="stat-label">Per Month</span></div>
             </div>
 
+            {/* Season Day Counter */}
+            {gameStarted && (
+              <div style={{background:"var(--surface)",border:"1px solid var(--border)",padding:"1rem 2rem",marginBottom:"1rem",width:"100%",maxWidth:"600px",textAlign:"center"}}>
+                <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.55rem",letterSpacing:"0.3em",color:"var(--text-dim)",textTransform:"uppercase",marginBottom:"0.5rem"}}>Season {SEASON_NUMBER} Progress</p>
+                <div style={{display:"flex",alignItems:"center",gap:"0.5rem",justifyContent:"center",marginBottom:"0.5rem"}}>
+                  {Array.from({length:10}).map((_,i)=>(
+                    <div key={i} style={{flex:1,height:"6px",borderRadius:"3px",background:i<globalUnlockedCount?"var(--gold)":"var(--surface2)",transition:"background 0.4s"}}/>
+                  ))}
+                </div>
+                <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.65rem",color:"var(--text-dim)",letterSpacing:"0.1em"}}>
+                  DAY <span style={{color:"var(--gold)",fontWeight:"bold"}}>{Math.min(daysSinceStart,10)}</span> OF 10 &nbsp;·&nbsp; <span style={{color:"var(--gold)",fontWeight:"bold"}}>{globalUnlockedCount}</span> OF 10 RIDDLES LIVE
+                  {globalUnlockedCount < 10 && <> &nbsp;·&nbsp; <span style={{color:"var(--text-dim)"}}>{10-globalUnlockedCount} MORE TO COME</>}
+                  {globalUnlockedCount === 10 && <span style={{color:"var(--green)"}}> &nbsp;·&nbsp; ALL RIDDLES LIVE — FINAL DAY!</span>}
+                </p>
+                {!user && globalUnlockedCount > 1 && (
+                  <p style={{fontSize:"0.85rem",color:"var(--text-dim)",fontStyle:"italic",marginTop:"0.5rem"}}>
+                    Joining today? Solve <strong style={{color:"var(--gold)"}}>{globalUnlockedCount} riddles</strong> to catch up to the current level — then compete live!
+                  </p>
+                )}
+              </div>
+            )}
+            {!gameStarted && (
+              <div style={{background:"var(--surface)",border:"1px solid var(--border)",padding:"1rem 2rem",marginBottom:"1rem",width:"100%",maxWidth:"600px",textAlign:"center"}}>
+                <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.55rem",letterSpacing:"0.3em",color:"var(--text-dim)",textTransform:"uppercase",marginBottom:"0.3rem"}}>Season {SEASON_NUMBER} Starts</p>
+                <p style={{fontFamily:"'Cinzel Decorative',serif",fontSize:"1.1rem",color:"var(--gold)"}}>{formatDate(gameStartDate)}</p>
+                <p style={{fontSize:"0.85rem",color:"var(--text-dim)",fontStyle:"italic",marginTop:"0.3rem"}}>Subscribe now — be ready from Day 1</p>
+              </div>
+            )}
             {countdown && (
               <div style={{fontFamily:"'Space Mono',monospace",fontSize:"0.65rem",color:"var(--text-dim)",letterSpacing:"0.15em",marginBottom:"1.5rem"}}>
                 NEXT RIDDLE IN: <span style={{color:"var(--gold)"}}>{countdown}</span>
