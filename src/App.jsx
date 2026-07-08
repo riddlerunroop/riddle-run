@@ -582,7 +582,7 @@ export default function App() {
                 </div>
                 <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.65rem",color:"var(--text-dim)",letterSpacing:"0.1em"}}>
                   DAY <span style={{color:"var(--gold)",fontWeight:"bold"}}>{Math.min(daysSinceStart,10)}</span> OF 10 &nbsp;·&nbsp; <span style={{color:"var(--gold)",fontWeight:"bold"}}>{globalUnlockedCount}</span> OF 10 RIDDLES LIVE
-                  {globalUnlockedCount < 10 && <> &nbsp;·&nbsp; <span style={{color:"var(--text-dim)"}}>{10-globalUnlockedCount} MORE TO COME</>}
+                  {globalUnlockedCount < 10 && <> &nbsp;·&nbsp; <span style={{color:"var(--text-dim)"}}>{10-globalUnlockedCount} MORE TO COME</span></>}
                   {globalUnlockedCount === 10 && <span style={{color:"var(--green)"}}> &nbsp;·&nbsp; ALL RIDDLES LIVE — FINAL DAY!</span>}
                 </p>
                 {!user && globalUnlockedCount > 1 && (
