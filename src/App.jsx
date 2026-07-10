@@ -454,7 +454,9 @@ export default function App() {
         const completed = progress?.completed_levels || [];
         setUser({ name:player.name, email:player.email, plan:player.plan, isSub:player.is_sub });
         setPlayerId(player.id); setCompletedLevels(completed);
-        setHintsUsed(progress?.hints_used||0); setCurrentLevel(completed.length > 0 ? completed[completed.length-1] : 0);
+        setHintsUsed(progress?.hints_used||0);
+        setCurrentLevel(completed.length > 0 ? completed[completed.length-1] + 1 : 0);
+        setAnswer(""); setFeedback(null); setShowHint(false); setAttempts(0); setAttemptsExhausted(false);
         setLoginEmail(""); setLoginPassword(""); setLoginError(""); setScreen(SCREEN.GAME); return;
       }
       const found = REGISTERED_USERS.find(u => u.email.toLowerCase()===loginEmail.toLowerCase() && u.password===loginPassword);
