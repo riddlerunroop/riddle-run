@@ -29,6 +29,10 @@ function getMaxAttempts(levelIndex) {
   return ATTEMPTS_PER_LEVEL[levelIndex + 1] || Infinity;
 }
 
+// Max hints a player can use on a SINGLE riddle, no matter how many
+// hints they have banked (earned via referrals or bought).
+const MAX_HINTS_PER_RIDDLE = 3;
+
 function getAttemptsLabel(levelIndex) {
   const max = getMaxAttempts(levelIndex);
   if (max === Infinity) return "Unlimited attempts";
@@ -82,17 +86,21 @@ const REFERRAL_REWARDS = [
 ];
 
 // ─── RIDDLES ─────────────────────────────────────────────────────────────────
+// Each riddle supports up to 3 progressive hints (hints[0] = gentlest, hints[2] = most direct)
+// and an "explanation" shown after the riddle is solved (or attempts run out) so players
+// understand exactly why the answer is correct — and why other plausible-sounding
+// answers don't actually fit every clue.
 const DEFAULT_RIDDLES = [
-  { id:1, title:"Day One", riddle:"I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?", answer:"echo", hint:"Think of what happens when you shout in a valley.", unlockDay:1 },
-  { id:2, title:"Day Two", riddle:"The more you take, the more you leave behind. What am I?", answer:"footsteps", hint:"Think about walking on sand or snow.", unlockDay:2 },
-  { id:3, title:"Day Three", riddle:"I have cities, but no houses live there. I have mountains, but no trees grow. I have water, but no fish swim. What am I?", answer:"map", hint:"You use me to find your way.", unlockDay:3 },
-  { id:4, title:"Day Four", riddle:"A man buys it to eat but never eats it. Another man sells it but has never owned it. What is it?", answer:"coffin", hint:"Something you hope to never need.", unlockDay:4 },
-  { id:5, title:"Day Five", riddle:"What has one eye but cannot see, a tail but cannot wag, and a body but no soul?", answer:"needle", hint:"Your grandmother used this to stitch clothes.", unlockDay:5 },
-  { id:6, title:"Day Six", riddle:"I am always in front of you but can never be seen. What am I?", answer:"future", hint:"It is not the past. It is not now.", unlockDay:6 },
-  { id:7, title:"Day Seven", riddle:"The one who makes it sells it. The one who buys it never uses it. The one who uses it never knows it.", answer:"coffin", hint:"Same theme as Day Four.", unlockDay:7 },
-  { id:8, title:"Day Eight", riddle:"I shrink every time I work. I vanish when I am done. Yet without me, things stay dirty. What am I?", answer:"soap", hint:"You use me every morning.", unlockDay:8 },
-  { id:9, title:"Day Nine", riddle:"Kings and queens bow before me. The proud become humble. The strong grow weak. I am invisible, yet all-powerful. What am I?", answer:"time", hint:"Even mountains cannot resist me.", unlockDay:9 },
-  { id:10, title:"Day Ten", riddle:"I have no beginning, no end, and nothing in the middle. What am I?", answer:"doughnut", hint:"Think of a shape you can eat.", unlockDay:10 },
+  { id:1, title:"Day One", riddle:"I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?", answer:"echo", hints:["Think of what happens when you shout in a valley.","",""], explanation:"An echo has no mouth or ears of its own — it only repeats sound that already exists, and it needs air (sound waves) to travel.", unlockDay:1 },
+  { id:2, title:"Day Two", riddle:"The more you take, the more you leave behind. What am I?", answer:"footsteps", hints:["Think about walking on sand or snow.","",""], explanation:"Every step you take leaves a new footprint behind you — the more steps taken, the more footprints left.", unlockDay:2 },
+  { id:3, title:"Day Three", riddle:"I have cities, but no houses live there. I have mountains, but no trees grow. I have water, but no fish swim. What am I?", answer:"map", hints:["You use me to find your way.","",""], explanation:"A map depicts cities, mountains, and water, but it's a flat representation — nothing actually lives or grows on it.", unlockDay:3 },
+  { id:4, title:"Day Four", riddle:"A man buys it to eat but never eats it. Another man sells it but has never owned it. What is it?", answer:"coffin", hints:["Something you hope to never need.","",""], explanation:"A coffin is bought for the deceased (who can't eat it), and the undertaker sells it without ever having owned or used one personally.", unlockDay:4 },
+  { id:5, title:"Day Five", riddle:"What has one eye but cannot see, a tail but cannot wag, and a body but no soul?", answer:"needle", hints:["Your grandmother used this to stitch clothes.","",""], explanation:"A sewing needle has an 'eye' (the hole for thread) and a 'tail' (the thread trailing behind), but neither is a literal, living eye or tail.", unlockDay:5 },
+  { id:6, title:"Day Six", riddle:"I am always in front of you but can never be seen. What am I?", answer:"future", hints:["It is not the past. It is not now.","",""], explanation:"The future always lies ahead of us in time, but by definition it hasn't happened yet, so it can never actually be seen.", unlockDay:6 },
+  { id:7, title:"Day Seven", riddle:"The one who makes it sells it. The one who buys it never uses it. The one who uses it never knows it.", answer:"coffin", hints:["Same theme as Day Four.","",""], explanation:"The maker sells the coffin, the buyer (a grieving family member) never personally uses it, and the person who ends up 'using' it is no longer conscious to know it.", unlockDay:7 },
+  { id:8, title:"Day Eight", riddle:"I shrink every time I work. I vanish when I am done. Yet without me, things stay dirty. What am I?", answer:"soap", hints:["You use me every morning.","",""], explanation:"A bar of soap physically shrinks with every use and eventually disappears entirely, but it's essential for cleaning.", unlockDay:8 },
+  { id:9, title:"Day Nine", riddle:"Kings and queens bow before me. The proud become humble. The strong grow weak. I am invisible, yet all-powerful. What am I?", answer:"time", hints:["Even mountains cannot resist me.","",""], explanation:"Time affects everyone regardless of status or strength — it's an abstract force, not a physical or visible thing, yet nothing escapes its effect.", unlockDay:9 },
+  { id:10, title:"Day Ten", riddle:"I have no beginning, no end, and nothing in the middle. What am I?", answer:"doughnut", hints:["Think of a shape you can eat.","",""], explanation:"A doughnut is a ring — geometrically a torus — with no defined start or end point along its loop, and a hole in the middle rather than a filled center.", unlockDay:10 },
 ];
 
 const MOCK_LEADERBOARD = [
@@ -173,7 +181,7 @@ const styles = `
   .tagline { font-size:1.2rem; font-style:italic; color:var(--text-dim); margin-bottom:2rem; animation:fadeUp 0.8s 0.3s ease both; }
 
   /* PRIZE BANNER */
-  .prize-banner { background:linear-gradient(135deg,rgba(201,168,76,0.15),rgba(139,26,26,0.1)); border:1px solid var(--border); padding:1.5rem 2.5rem; margin-bottom:2rem; text-align:center; animation:fadeUp 0.8s 0.35s ease both; position:relative; overflow:hidden; }
+  .prize-banner { background:linear-gradient(135deg,rgba(201,168,76,0.16),rgba(42,157,92,0.08)); border:1px solid var(--border); padding:1.5rem 2.5rem; margin-bottom:2rem; text-align:center; animation:fadeUp 0.8s 0.35s ease both; position:relative; overflow:hidden; }
   .prize-banner::before { content:''; position:absolute; inset:0; background:linear-gradient(90deg,transparent,rgba(201,168,76,0.05),transparent); animation:shimmer 3s infinite; }
   .prize-eyebrow { font-family:'Space Mono',monospace; font-size:0.55rem; letter-spacing:0.3em; color:var(--text-dim); text-transform:uppercase; margin-bottom:0.4rem; }
   .prize-name { font-family:'Cinzel Decorative',serif; font-size:clamp(1.2rem,4vw,2rem); color:var(--gold); text-shadow:0 0 30px rgba(201,168,76,0.4); display:block; margin-bottom:0.3rem; }
@@ -289,7 +297,7 @@ const styles = `
   .lb-wrap { max-width:700px; margin:0 auto; padding:3rem 2rem; }
   .lb-title { font-family:'Cinzel Decorative',serif; font-size:1.5rem; color:var(--gold); margin-bottom:0.3rem; text-align:center; }
   .lb-sub { color:var(--text-dim); font-style:italic; text-align:center; margin-bottom:2rem; }
-  .prize-card { background:linear-gradient(135deg,rgba(201,168,76,0.12),rgba(139,26,26,0.08)); border:1px solid var(--border); padding:1.5rem 2rem; text-align:center; margin-bottom:2rem; }
+  .prize-card { background:linear-gradient(135deg,rgba(201,168,76,0.16),rgba(42,157,92,0.08)); border:1px solid var(--border); padding:1.5rem 2rem; text-align:center; margin-bottom:2rem; }
   .prize-card-label { font-family:'Space Mono',monospace; font-size:0.55rem; letter-spacing:0.25em; color:var(--text-dim); text-transform:uppercase; margin-bottom:0.3rem; }
   .prize-card-name { font-family:'Cinzel Decorative',serif; font-size:1.5rem; color:var(--gold); display:block; }
   .prize-card-value { font-size:0.85rem; color:var(--text-dim); font-style:italic; margin-top:0.3rem; }
@@ -377,9 +385,12 @@ export default function App() {
   const [feedback, setFeedback] = useState(null);
   const [showHint, setShowHint] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  const [attemptsExhausted, setAttemptsExhausted] = useState(false);
   const [completedLevels, setCompletedLevels] = useState([]);
   const [hintsUsed, setHintsUsed] = useState(0);
   const [hintsAvailable, setHintsAvailable] = useState(0);
+  const [hintsUsedThisRiddle, setHintsUsedThisRiddle] = useState(0); // resets every time currentLevel changes; capped at MAX_HINTS_PER_RIDDLE
+  const [revealedHints, setRevealedHints] = useState([]); // hint strings revealed so far for the current riddle
   const [totalPlayers, setTotalPlayers] = useState(47);
   const [adminPass, setAdminPass] = useState("");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
@@ -457,6 +468,7 @@ export default function App() {
         setHintsUsed(progress?.hints_used||0);
         setCurrentLevel(completed.length > 0 ? completed[completed.length-1] + 1 : 0);
         setAnswer(""); setFeedback(null); setShowHint(false); setAttempts(0); setAttemptsExhausted(false);
+        setHintsUsedThisRiddle(0); setRevealedHints([]);
         setLoginEmail(""); setLoginPassword(""); setLoginError(""); setScreen(SCREEN.GAME); return;
       }
       const found = REGISTERED_USERS.find(u => u.email.toLowerCase()===loginEmail.toLowerCase() && u.password===loginPassword);
@@ -510,34 +522,51 @@ export default function App() {
     const puzzle = riddles[currentLevel];
     if (!puzzle) return;
     if (answer.trim().toLowerCase() === puzzle.answer.toLowerCase()) {
-      setFeedback({ type:"success", msg:"Correct! Well done. Moving forward..." });
+      setFeedback({ type:"success", msg:"Correct! Well done. Moving forward...", explanation: puzzle.explanation });
       const newCompleted = [...completedLevels, currentLevel];
       setCompletedLevels(newCompleted);
       saveProgress(newCompleted, currentLevel, hintsUsed);
       setTimeout(() => {
         const nextIdx = currentLevel + 1;
-        if (nextIdx >= riddles.length) { setFeedback({ type:"success", msg:"🏆 You've completed all levels! You are in the lead!" }); return; }
+        if (nextIdx >= riddles.length) { setFeedback({ type:"success", msg:"🏆 You've completed all levels! You are in the lead!", explanation: puzzle.explanation }); return; }
         setCurrentLevel(nextIdx); setAnswer(""); setFeedback(null); setShowHint(false); setAttempts(0);
+        setAttemptsExhausted(false); setHintsUsedThisRiddle(0); setRevealedHints([]);
       }, 1500);
     } else {
       const n = attempts + 1; setAttempts(n);
-      setFeedback({ type:"error", msg:`Wrong answer. Think deeper. (Attempt ${n})` });
+      const max = getMaxAttempts(currentLevel);
+      if (max !== Infinity && n >= max) {
+        // Out of attempts — show the explanation so the player understands why the
+        // answer was what it was (and why other plausible guesses didn't fit), rather
+        // than being left feeling wronged.
+        setAttemptsExhausted(true);
+        setFeedback({ type:"error", msg:"No attempts remaining for today's riddle.", explanation: puzzle.explanation });
+      } else {
+        setFeedback({ type:"error", msg:`Wrong answer. Think deeper. (Attempt ${n})` });
+      }
       if(answerRef.current){ answerRef.current.classList.add("wrong"); setTimeout(()=>answerRef.current?.classList.remove("wrong"),500); }
     }
   };
 
   const handleUseHint = () => {
+    const puzzle = riddles[currentLevel];
+    if (!puzzle) return;
+    // Hard cap: max 3 hints per riddle, no matter how many hints the player has
+    // banked from referrals or purchases.
+    if (hintsUsedThisRiddle >= MAX_HINTS_PER_RIDDLE) return;
+
+    const hintPool = puzzle.hints && puzzle.hints.length ? puzzle.hints : [puzzle.hint || ""];
+    const nextHintText = hintPool[hintsUsedThisRiddle] || hintPool[hintPool.length-1] || "";
+
     if (hintsAvailable > 0) {
       setHintsAvailable(p=>p-1);
-      setShowHint(true);
-      setAttemptsExhausted(false); // Free hint restores one attempt
-      setFeedback(null);
-    } else {
-      // Paid hint — in production charge via Razorpay
-      setShowHint(true);
-      setAttemptsExhausted(false); // Paid hint also restores attempt
-      setFeedback(null);
     }
+    // Paid hint — in production charge via Razorpay before reaching here
+    setRevealedHints(prev => [...prev, nextHintText]);
+    setHintsUsedThisRiddle(p=>p+1);
+    setShowHint(true);
+    setAttemptsExhausted(false); // Using a hint restores one attempt
+    setFeedback(null);
     setHintsUsed(p=>p+1);
   };
 
@@ -805,18 +834,30 @@ export default function App() {
               <div style={{background:"rgba(139,26,26,0.1)",border:"1px solid rgba(192,57,43,0.3)",padding:"2rem",marginBottom:"1.5rem",textAlign:"center"}}>
                 <p style={{fontSize:"2rem",marginBottom:"0.8rem"}}>🔒</p>
                 <p style={{fontFamily:"'Cinzel Decorative',serif",color:"var(--red)",fontSize:"1rem",marginBottom:"0.5rem"}}>All attempts used!</p>
-                <p style={{color:"var(--text-dim)",fontStyle:"italic",marginBottom:"1.5rem",fontSize:"0.9rem"}}>Buy a hint to unlock one more attempt and try again.</p>
-                <div style={{display:"flex",gap:"1rem",justifyContent:"center",flexWrap:"wrap"}}>
-                  {hintsAvailable > 0 ? (
-                    <button className="btn-primary" onClick={handleUseHint}>
-                      Use Free Hint ({hintsAvailable} left) — Unlock Attempt
-                    </button>
-                  ) : (
-                    <button className="btn-primary" style={{background:"#2d6ef5"}} onClick={handleUseHint}>
-                      🔍 Buy Hint for ₹29 — Unlock Attempt
-                    </button>
-                  )}
-                </div>
+                {hintsUsedThisRiddle < MAX_HINTS_PER_RIDDLE ? (
+                  <>
+                    <p style={{color:"var(--text-dim)",fontStyle:"italic",marginBottom:"1.5rem",fontSize:"0.9rem"}}>Use a hint to unlock one more attempt and try again. ({hintsUsedThisRiddle}/{MAX_HINTS_PER_RIDDLE} hints used on this riddle)</p>
+                    <div style={{display:"flex",gap:"1rem",justifyContent:"center",flexWrap:"wrap"}}>
+                      {hintsAvailable > 0 ? (
+                        <button className="btn-primary" onClick={handleUseHint}>
+                          Use Free Hint ({hintsAvailable} left) — Unlock Attempt
+                        </button>
+                      ) : (
+                        <button className="btn-primary" style={{background:"#2d6ef5"}} onClick={handleUseHint}>
+                          🔍 Buy Hint for ₹29 — Unlock Attempt
+                        </button>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p style={{color:"var(--text-dim)",fontStyle:"italic",fontSize:"0.9rem"}}>You've used the maximum of {MAX_HINTS_PER_RIDDLE} hints on this riddle. Come back tomorrow for the next one!</p>
+                )}
+                {feedback?.explanation && (
+                  <div style={{marginTop:"1.5rem",textAlign:"left",background:"rgba(201,168,76,0.06)",border:"1px solid rgba(201,168,76,0.2)",padding:"1rem 1.2rem"}}>
+                    <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.58rem",color:"var(--gold)",letterSpacing:"0.1em",marginBottom:"0.4rem",textTransform:"uppercase"}}>Why This Was The Answer</p>
+                    <p style={{fontSize:"0.85rem",color:"var(--text-dim)",lineHeight:1.6}}>{feedback.explanation}</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -840,7 +881,7 @@ export default function App() {
                   {completedLevels.length < globalUnlockedCount ? "You're catching up — next riddle is ready!" : "Well done. Next riddle tomorrow."}
                 </p>
                 {currentLevel+1 < riddles.length && (
-                  <button className="btn-primary" onClick={()=>{setCurrentLevel(p=>p+1);setAnswer("");setFeedback(null);setShowHint(false);setAttempts(0);}}>
+                  <button className="btn-primary" onClick={()=>{setCurrentLevel(p=>p+1);setAnswer("");setFeedback(null);setShowHint(false);setAttempts(0);setAttemptsExhausted(false);setHintsUsedThisRiddle(0);setRevealedHints([]);}}>
                     {completedLevels.length < globalUnlockedCount ? "Next Riddle →" : "See Status →"}
                   </button>
                 )}
@@ -848,23 +889,33 @@ export default function App() {
             ) : (
               <>
                 <div className="riddle-card"><p className="riddle-text">{puzzle?.riddle}</p></div>
-                {showHint && <div className="hint-box">💡 {puzzle?.hint}</div>}
-                {feedback && <div className={`feedback ${feedback.type}`}>{feedback.msg}</div>}
+                {revealedHints.map((h,i)=> h ? <div key={i} className="hint-box">💡 Hint {i+1}/{MAX_HINTS_PER_RIDDLE}: {h}</div> : null)}
+                {feedback && (
+                  <div className={`feedback ${feedback.type}`}>
+                    {feedback.msg}
+                    {feedback.explanation && (
+                      <div style={{marginTop:"0.8rem",paddingTop:"0.8rem",borderTop:"1px solid rgba(255,255,255,0.1)",fontStyle:"normal"}}>
+                        <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.55rem",letterSpacing:"0.1em",marginBottom:"0.35rem",textTransform:"uppercase",opacity:0.8}}>Why This Was The Answer</p>
+                        <p style={{fontSize:"0.85rem",lineHeight:1.6,opacity:0.9}}>{feedback.explanation}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="answer-row">
                   <input ref={answerRef} className="answer-input" placeholder="Your answer..." value={answer} onChange={e=>setAnswer(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmitAnswer()}/>
                   <button className="submit-btn" onClick={handleSubmitAnswer} disabled={!answer.trim()}>Submit</button>
                 </div>
                 {/* Hint Section */}
                 <div style={{marginBottom:"1.5rem"}}>
-                  {!showHint ? (
+                  {hintsUsedThisRiddle < MAX_HINTS_PER_RIDDLE ? (
                     <div style={{display:"flex",gap:"0.8rem",alignItems:"center",flexWrap:"wrap"}}>
                       {hintsAvailable > 0 ? (
                         <button onClick={handleUseHint} style={{fontFamily:"'Space Mono',monospace",fontSize:"0.65rem",letterSpacing:"0.1em",textTransform:"uppercase",background:"rgba(42,157,92,0.1)",border:"1px solid rgba(42,157,92,0.3)",color:"var(--green)",padding:"0.6rem 1.2rem",cursor:"pointer",transition:"all 0.2s"}}>
-                          ✦ Use Free Hint ({hintsAvailable} remaining)
+                          ✦ Use Free Hint ({hintsAvailable} remaining) — {hintsUsedThisRiddle}/{MAX_HINTS_PER_RIDDLE} used
                         </button>
                       ) : (
                         <button onClick={handleUseHint} style={{fontFamily:"'Space Mono',monospace",fontSize:"0.65rem",letterSpacing:"0.1em",textTransform:"uppercase",background:"rgba(45,110,245,0.1)",border:"1px solid rgba(45,110,245,0.3)",color:"#5b8def",padding:"0.6rem 1.2rem",cursor:"pointer",transition:"all 0.2s"}}>
-                          🔍 Buy Hint — ₹29
+                          🔍 Buy Hint — ₹29 ({hintsUsedThisRiddle}/{MAX_HINTS_PER_RIDDLE} used)
                         </button>
                       )}
                       {attempts >= 2 && !attemptsExhausted && (
@@ -874,7 +925,9 @@ export default function App() {
                       )}
                     </div>
                   ) : (
-                    <div className="hint-box">💡 {puzzle?.hint}</div>
+                    <span style={{fontFamily:"'Space Mono',monospace",fontSize:"0.55rem",color:"var(--text-dim)",letterSpacing:"0.1em",fontStyle:"italic"}}>
+                      Maximum of {MAX_HINTS_PER_RIDDLE} hints used for this riddle — no more available, even with hints in your kitty.
+                    </span>
                   )}
                 </div>
               </>
@@ -1144,7 +1197,21 @@ export default function App() {
                             <div><p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.58rem",color:"var(--text-dim)",letterSpacing:"0.1em",marginBottom:"0.3rem",textTransform:"uppercase"}}>Title</p><input className="form-input" value={editingRiddle.title} onChange={e=>setEditingRiddle({...editingRiddle,title:e.target.value})}/></div>
                             <div><p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.58rem",color:"var(--text-dim)",letterSpacing:"0.1em",marginBottom:"0.3rem",textTransform:"uppercase"}}>Riddle</p><textarea className="form-textarea" value={editingRiddle.riddle} onChange={e=>setEditingRiddle({...editingRiddle,riddle:e.target.value})} rows={3}/></div>
                             <div><p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.58rem",color:"var(--text-dim)",letterSpacing:"0.1em",marginBottom:"0.3rem",textTransform:"uppercase"}}>Answer</p><input className="form-input" value={editingRiddle.answer} onChange={e=>setEditingRiddle({...editingRiddle,answer:e.target.value.toLowerCase()})}/></div>
-                            <div><p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.58rem",color:"var(--text-dim)",letterSpacing:"0.1em",marginBottom:"0.3rem",textTransform:"uppercase"}}>Hint</p><input className="form-input" value={editingRiddle.hint} onChange={e=>setEditingRiddle({...editingRiddle,hint:e.target.value})}/></div>
+                            <div>
+                              <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.58rem",color:"var(--text-dim)",letterSpacing:"0.1em",marginBottom:"0.3rem",textTransform:"uppercase"}}>Hints (up to {MAX_HINTS_PER_RIDDLE} — gentlest first, most direct last. Players can never unlock more than {MAX_HINTS_PER_RIDDLE}, even with hints banked from referrals/purchases.)</p>
+                              {[0,1,2].map(i=>{
+                                const currentHints = editingRiddle.hints && editingRiddle.hints.length ? editingRiddle.hints : [editingRiddle.hint||"","",""];
+                                return (
+                                  <input key={i} className="form-input" style={{marginBottom:"0.5rem"}} placeholder={`Hint ${i+1}${i===0?" (required)":" (optional)"}`}
+                                    value={currentHints[i]||""}
+                                    onChange={e=>{
+                                      const newHints=[...currentHints]; newHints[i]=e.target.value;
+                                      setEditingRiddle({...editingRiddle, hints:newHints});
+                                    }}/>
+                                );
+                              })}
+                            </div>
+                            <div><p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.58rem",color:"var(--text-dim)",letterSpacing:"0.1em",marginBottom:"0.3rem",textTransform:"uppercase"}}>Explanation (shown after correct answer, or after all attempts are used — explains why THIS answer, not other plausible ones)</p><textarea className="form-textarea" value={editingRiddle.explanation||""} onChange={e=>setEditingRiddle({...editingRiddle,explanation:e.target.value})} rows={3}/></div>
                             <div style={{display:"flex",gap:"0.8rem",alignItems:"center"}}>
                               <button className="save-btn" onClick={()=>saveRiddle(riddle.id)}>✓ Save</button>
                               <button className="hint-btn" onClick={()=>setEditingRiddle(null)}>Cancel</button>
@@ -1154,7 +1221,9 @@ export default function App() {
                         ) : (
                           <div>
                             <p style={{fontSize:"0.88rem",color:"var(--text-dim)",fontStyle:"italic",marginBottom:"0.5rem",lineHeight:1.6}}>"{riddle.riddle}"</p>
-                            <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",color:"var(--text-dim)",letterSpacing:"0.08em"}}>ANS: <span style={{color:"var(--gold)"}}>{riddle.answer}</span> · HINT: {riddle.hint}</p>
+                            <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",color:"var(--text-dim)",letterSpacing:"0.08em"}}>ANS: <span style={{color:"var(--gold)"}}>{riddle.answer}</span></p>
+                            <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",color:"var(--text-dim)",letterSpacing:"0.08em",marginTop:"0.3rem"}}>HINTS: {(riddle.hints&&riddle.hints.filter(Boolean).length)?riddle.hints.filter(Boolean).join(" · "):(riddle.hint||"—")}</p>
+                            <p style={{fontFamily:"'Space Mono',monospace",fontSize:"0.6rem",color:"var(--text-dim)",letterSpacing:"0.08em",marginTop:"0.3rem"}}>EXPLANATION: {riddle.explanation||"—"}</p>
                             <button className="hint-btn" style={{marginTop:"0.8rem"}} onClick={()=>setEditingRiddle({...riddle})}>✏️ Edit</button>
                           </div>
                         )}
