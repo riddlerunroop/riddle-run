@@ -33,6 +33,16 @@ function getMaxAttempts(levelIndex) {
 // hints they have banked (earned via referrals or bought).
 const MAX_HINTS_PER_RIDDLE = 3;
 
+// Day 10 is permanently reserved, every season, for a real-person "manhunt" —
+// the person may or may not be a celebrity, but they are always real and must be
+// found and contacted using genuine investigation, not guessed or looked up outright.
+// This notice renders automatically above the Day 10 riddle every season, so it
+// never needs to be retyped into the riddle text itself.
+const DAY10_MANHUNT_NOTICE = {
+  title: "This Is A Manhunt",
+  body: "Every season, Day 10 leads to one real, living person — they may or may not be well known, but they are always real. Solving this riddle takes genuine investigation: reading closely, cross-referencing clues, and searching deliberately — not a lucky guess. Before you search, know this: the answer is not a legend from a history book, nor a name that appears just by asking a machine. They are real, and they are waiting to be found — not solved for you."
+};
+
 function getAttemptsLabel(levelIndex) {
   const max = getMaxAttempts(levelIndex);
   if (max === Infinity) return "Unlimited attempts";
@@ -888,6 +898,12 @@ export default function App() {
               </div>
             ) : (
               <>
+                {puzzle?.unlockDay === 10 && (
+                  <div style={{background:"linear-gradient(135deg,rgba(201,168,76,0.14),rgba(201,168,76,0.02))",border:"1px solid var(--gold-dim)",padding:"1.5rem 1.8rem",marginBottom:"1.5rem"}}>
+                    <p style={{fontFamily:"'Cinzel Decorative',serif",color:"var(--gold)",fontSize:"1rem",marginBottom:"0.6rem",letterSpacing:"0.03em"}}>🕵️ {DAY10_MANHUNT_NOTICE.title}</p>
+                    <p style={{color:"var(--text-dim)",fontStyle:"italic",fontSize:"0.88rem",lineHeight:1.7}}>{DAY10_MANHUNT_NOTICE.body}</p>
+                  </div>
+                )}
                 <div className="riddle-card"><p className="riddle-text">{puzzle?.riddle}</p></div>
                 {revealedHints.map((h,i)=> h ? <div key={i} className="hint-box">💡 Hint {i+1}/{MAX_HINTS_PER_RIDDLE}: {h}</div> : null)}
                 {feedback && (
@@ -902,7 +918,7 @@ export default function App() {
                   </div>
                 )}
                 <div className="answer-row">
-                  <input ref={answerRef} className="answer-input" placeholder="Your answer..." value={answer} onChange={e=>setAnswer(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmitAnswer()}/>
+                  <input ref={answerRef} className="answer-input" placeholder="Your answer..." value={answer} onChange={e=>setAnswer(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmitAnswer()} autoCapitalize="on" autoCorrect="off" spellCheck="false"/>
                   <button className="submit-btn" onClick={handleSubmitAnswer} disabled={!answer.trim()}>Submit</button>
                 </div>
                 {/* Hint Section */}
