@@ -77,6 +77,16 @@ const supabase = {
     const res = await fetch(SUPABASE_URL + "/rest/v1/players?select=id", { headers: { "apikey":SUPABASE_ANON_KEY, "Authorization":"Bearer "+SUPABASE_ANON_KEY, "Prefer":"count=exact" } });
     const c = res.headers.get("content-range");
     return c ? parseInt(c.split("/")[1]) || 0 : 0;
+  },
+  // ── Riddles persistence — so Admin edits survive page reloads and future deploys ──
+  async getRiddles() { return await this.query(`/rest/v1/riddles?season=eq.${SEASON_NUMBER}&select=*&order=id.asc`); },
+  async seedRiddles(riddleList) {
+    return await this.query("/rest/v1/riddles", { method:"POST", prefer:"return=representation",
+      body: JSON.stringify(riddleList.map(r => ({ id:r.id, season:SEASON_NUMBER, title:r.title, riddle:r.riddle, answer:r.answer, hints:r.hints||["","",""], explanation:r.explanation||"", unlock_day:r.unlockDay }))) });
+  },
+  async saveRiddleToDb(r) {
+    return await this.query(`/rest/v1/riddles?id=eq.${r.id}&season=eq.${SEASON_NUMBER}`, { method:"PATCH", prefer:"return=representation",
+      body: JSON.stringify({ title:r.title, riddle:r.riddle, answer:r.answer, hints:r.hints||["","",""], explanation:r.explanation||"", unlock_day:r.unlockDay, updated_at:new Date().toISOString() }) });
   }
 };
 
@@ -436,6 +446,26 @@ export default function App() {
     supabase.getPlayerCount().then(c => { if(c > 0) setTotalPlayers(c); }).catch(()=>{});
   }, []);
 
+  // Load riddles from Supabase — this is now the single source of truth, so Admin
+  // edits persist across reloads and future code deploys. If the table is empty
+  // (first time ever running this), seed it once from DEFAULT_RIDDLES.
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await supabase.getRiddles();
+        if (rows && rows.length > 0) {
+          setRiddles(rows.map(r => ({ id:r.id, title:r.title, riddle:r.riddle, answer:r.answer, hints:r.hints||["","",""], explanation:r.explanation||"", unlockDay:r.unlock_day })));
+        } else {
+          await supabase.seedRiddles(DEFAULT_RIDDLES);
+          setRiddles(DEFAULT_RIDDLES);
+        }
+      } catch (e) {
+        // If Supabase is unreachable, fall back to whatever's hardcoded so the game still works
+        console.error("Failed to load riddles from Supabase, using defaults:", e);
+      }
+    })();
+  }, []);
+
   // Load Razorpay
   useEffect(() => {
     const s = document.createElement("script");
@@ -581,9 +611,19 @@ export default function App() {
   };
 
   // Admin riddle save
-  const saveRiddle = (id) => {
-    setRiddles(prev => prev.map(r => r.id===id ? {...editingRiddle} : r));
-    setSavedLevel(id); setTimeout(()=>setSavedLevel(null),2000); setEditingRiddle(null);
+  const [riddleSaveError, setRiddleSaveError] = useState("");
+  const saveRiddle = async (id) => {
+    const updated = {...editingRiddle};
+    setRiddles(prev => prev.map(r => r.id===id ? updated : r)); // optimistic local update
+    setEditingRiddle(null);
+    try {
+      await supabase.saveRiddleToDb(updated);
+      setSavedLevel(id); setTimeout(()=>setSavedLevel(null),2000);
+      setRiddleSaveError("");
+    } catch (e) {
+      setRiddleSaveError(`Could not save Day ${updated.title||id} to the database — your edit may not persist. Please try again.`);
+      console.error("saveRiddleToDb failed:", e);
+    }
   };
 
   const puzzle = riddles[currentLevel];
@@ -1233,6 +1273,7 @@ export default function App() {
                               <button className="hint-btn" onClick={()=>setEditingRiddle(null)}>Cancel</button>
                               {savedLevel===riddle.id&&<span className="saved-badge">✓ Saved!</span>}
                             </div>
+                            {riddleSaveError && <p style={{color:"var(--red)",fontSize:"0.75rem",marginTop:"0.5rem"}}>⚠️ {riddleSaveError}</p>}
                           </div>
                         ) : (
                           <div>
