@@ -59,6 +59,7 @@ const supabase = {
   async query(endpoint, options = {}) {
     const res = await fetch(SUPABASE_URL + endpoint, {
       headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json", "Prefer": options.prefer || "", ...options.headers },
+      cache: "no-store",
       ...options
     });
     if (!res.ok) throw new Error(await res.text());
@@ -416,6 +417,7 @@ export default function App() {
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminTab, setAdminTab] = useState(ADMIN_TAB.STATS);
   const [riddles, setRiddles] = useState(DEFAULT_RIDDLES);
+  const [riddlesLoadError, setRiddlesLoadError] = useState("");
   const [editingRiddle, setEditingRiddle] = useState(null);
   const [savedLevel, setSavedLevel] = useState(null);
   const [countdown, setCountdown] = useState("");
@@ -455,13 +457,17 @@ export default function App() {
         const rows = await supabase.getRiddles();
         if (rows && rows.length > 0) {
           setRiddles(rows.map(r => ({ id:r.id, title:r.title, riddle:r.riddle, answer:r.answer, hints:r.hints||["","",""], explanation:r.explanation||"", unlockDay:r.unlock_day })));
+          setRiddlesLoadError("");
         } else {
           await supabase.seedRiddles(DEFAULT_RIDDLES);
           setRiddles(DEFAULT_RIDDLES);
+          setRiddlesLoadError("");
         }
       } catch (e) {
-        // If Supabase is unreachable, fall back to whatever's hardcoded so the game still works
+        // Surface this visibly — silently falling back to hardcoded defaults is exactly
+        // what caused edits to appear "lost" before. Better to show the real error.
         console.error("Failed to load riddles from Supabase, using defaults:", e);
+        setRiddlesLoadError("Could not load riddles from the database — showing default placeholders instead. Your saved edits are NOT visible right now. Error: " + (e?.message || "unknown"));
       }
     })();
   }, []);
@@ -938,6 +944,11 @@ export default function App() {
               </div>
             ) : (
               <>
+                {riddlesLoadError && (
+                  <div style={{background:"rgba(139,26,26,0.15)",border:"1px solid var(--red)",padding:"1rem 1.2rem",marginBottom:"1.5rem"}}>
+                    <p style={{color:"var(--red)",fontSize:"0.85rem",lineHeight:1.6}}>⚠️ {riddlesLoadError}</p>
+                  </div>
+                )}
                 {puzzle?.unlockDay === 10 && (
                   <div style={{background:"linear-gradient(135deg,rgba(201,168,76,0.14),rgba(201,168,76,0.02))",border:"1px solid var(--gold-dim)",padding:"1.5rem 1.8rem",marginBottom:"1.5rem"}}>
                     <p style={{fontFamily:"'Cinzel Decorative',serif",color:"var(--gold)",fontSize:"1rem",marginBottom:"0.6rem",letterSpacing:"0.03em"}}>🕵️ {DAY10_MANHUNT_NOTICE.title}</p>
