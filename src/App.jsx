@@ -139,6 +139,7 @@ let REGISTERED_USERS = [
   { email:"roop.saggar@gmail.com", password:"roop123", name:"Roop", phone:"9999999993", plan:"monthly", isSub:true, completedLevels:[], hintsUsed:0, referrals:0, badge:false },
   { email:"aryan@test.com", password:"aryan123", name:"Aryan S.", phone:"9999999991", plan:"annual", isSub:true, completedLevels:[0,1,2,3,4,5], hintsUsed:1, referrals:5, badge:true },
   { email:"meera@test.com", password:"meera123", name:"Meera K.", phone:"9999999992", plan:"monthly", isSub:false, completedLevels:[0,1,2,3,4], hintsUsed:0, referrals:3, badge:false },
+  { email:"reviewer@riddlerun.in", password:"Review2026", name:"Reviewer", phone:"9999999994", plan:"monthly", isSub:true, completedLevels:[0,1,2], hintsUsed:1, referrals:0, badge:false },
 ];
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
