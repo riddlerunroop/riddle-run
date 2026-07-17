@@ -643,7 +643,13 @@ export default function App() {
   const puzzle = riddles[currentLevel];
   const isLevelCompleted = completedLevels.includes(currentLevel);
   const isCaughtUp = completedLevels.length >= globalUnlockedCount;
-  const isWaiting = isCaughtUp && puzzle && puzzle.unlockDay > daysSinceStart;
+  const nextRiddle = riddles[currentLevel + 1];
+  // isWaiting means: player has caught up to everything currently unlocked, AND
+  // there's a next riddle in the season that hasn't reached its unlock day yet.
+  // (Checking the NEXT riddle's date, not the current/just-solved one, which is
+  // always already unlocked by definition — checking the wrong one was the bug
+  // that let players blow through every riddle back-to-back regardless of date.)
+  const isWaiting = isCaughtUp && nextRiddle && nextRiddle.unlockDay > daysSinceStart;
   const referralLink = user ? `riddle-run-e3pm.vercel.app?ref=${user.email.split("@")[0]}` : "";
 
   return (
@@ -929,7 +935,7 @@ export default function App() {
               <div className="waiting-card">
                 <div className="waiting-icon">⏳</div>
                 <p className="waiting-title">You're all caught up!</p>
-                <p className="waiting-date">Day {currentLevel+2} riddle unlocks on <strong style={{color:"var(--gold)"}}>{formatDate(getUnlockDate(gameStartDate, riddles[currentLevel]?.unlockDay||0))}</strong></p>
+                <p className="waiting-date">Day {nextRiddle?.unlockDay} riddle unlocks on <strong style={{color:"var(--gold)"}}>{formatDate(getUnlockDate(gameStartDate, nextRiddle?.unlockDay||0))}</strong></p>
                 {countdown && <div className="waiting-countdown">{countdown}</div>}
                 <p className="waiting-note">Check the leaderboard to see where you stand. Tomorrow's riddle is coming — be ready.</p>
                 <div style={{display:"flex",gap:"1rem",justifyContent:"center",marginTop:"1.5rem",flexWrap:"wrap"}}>
