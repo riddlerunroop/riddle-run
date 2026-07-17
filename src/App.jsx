@@ -505,7 +505,14 @@ export default function App() {
     if (!loginEmail || !loginPassword) { setLoginError("Please enter your email and password."); return; }
     setLoginLoading(true);
     try {
-      const player = await supabase.getPlayer(loginEmail.toLowerCase().trim());
+      // Try Supabase first, but don't let a Supabase outage block the local
+      // demo/fallback accounts below — those should always work regardless.
+      let player = null;
+      try {
+        player = await supabase.getPlayer(loginEmail.toLowerCase().trim());
+      } catch (supabaseErr) {
+        console.error("Supabase getPlayer failed, falling back to local accounts:", supabaseErr);
+      }
       if (player && player.password === loginPassword) {
         const progress = await supabase.getProgress(player.id);
         const completed = progress?.completed_levels || [];
